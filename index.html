@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bicycle Safety map</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+
+<body>
+    <div class="container">
+        <div class="search-bar">
+            <input type="text" placeholder="Search">
+            <div>
+                <button>Search</button>
+                <button>Clear</button>
+            </div>
+        </div>
+
+        <!-- Tab View: Map -->
+        <div class="view-pane active" id="view-map">
+            <div class="map">
+                <button id="toggle-route-planner-btn" class="map-control-btn" style="display: none;">
+                    <span>🗺️</span> 路線規劃
+                </button>
+                <div
+                    style="position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; flex-direction: column; gap: 10px;">
+                    <button id="toggle-youbike-btn" class="map-control-btn"
+                        style="padding: 8px 12px; border-radius: 8px; border: none; background: #e6f4ea; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; font-weight: bold; transition: background 0.2s;">
+                        <span>🚲</span> YouBike層
+                    </button>
+                    <button id="toggle-bikelane-btn" class="map-control-btn"
+                        style="padding: 8px 12px; border-radius: 8px; border: none; background: #e6f4ea; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; font-weight: bold; transition: background 0.2s;">
+                        <span>🛣️</span> 自行車道
+                    </button>
+                </div>
+                <div id="map"></div>
+            </div>
+
+            <div class="details">
+                <span id="close-details"
+                    style="float: right; cursor: pointer; font-size: 20px; color: #888;">&times;</span>
+                <div class="detail-header">
+                    <div class="detail-label">
+                        <span class="header"></span>
+                    </div>
+                    <div class="safety-level">
+                        <span class="level"></span>
+                        <span>友善等級</span>
+                    </div>
+                </div>
+                <div class="btns">
+                    <button class="btn-toggle-1">fastest path</button>
+                    <button class="btn-toggle-2">safest path</button>
+                </div>
+                <div class="stats">
+                    <!-- stats items remain same -->
+                    <div class="stats-item">
+                        <div class="stats-label"><span>基礎設施</span><span class="score"></span></div>
+                        <div class="progress-bg">
+                            <div class="progress-fill" style="width: 85%;"></div>
+                        </div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stats-label"><span>交通環境風險</span><span class="score"></span></div>
+                        <div class="progress-bg">
+                            <div class="progress-fill" style="width: 85%;"></div>
+                        </div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stats-label"><span>歷史事故</span><span class="score"></span></div>
+                        <div class="progress-bg">
+                            <div class="progress-fill" style="width: 85%;"></div>
+                        </div>
+                    </div>
+                    <div class="stats-item">
+                        <div class="stats-label"><span>民眾意見</span><span class="score"></span></div>
+                        <div class="progress-bg">
+                            <div class="progress-fill" style="width: 85%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab View: Route Suggestion -->
+        <div class="view-pane" id="view-route">
+            <div class="route-planner-page">
+                <h3>路線規劃</h3>
+                <div class="route-inputs-container"
+                    style="display: flex; align-items: stretch; gap: 10px; margin-bottom: 12px;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                        <input type="text" id="start-point" placeholder="起點地址" style="margin-bottom: 0;">
+                        <input type="text" id="end-point" placeholder="終點地址" style="margin-bottom: 0;">
+                    </div>
+                    <button id="swap-route-btn" title="對調起終點"
+                        style="width: 40px; border: 1px solid #ddd; background: #f8f9fa; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                        <span style="font-size: 18px; color: #555; transform: rotate(90deg);">⇄</span>
+                    </button>
+                </div>
+                <label style="display: flex; align-items: center; margin: 10px 0;">
+                    <input type="checkbox" id="avoid-dangerous" style="margin-right: 8px;">
+                    <span>🛡️ 避開危險區域</span>
+                </label>
+
+                <div class="favorites-section">
+                    <h4>⭐ 常用地址</h4>
+                    <div class="add-favorite-bar">
+                        <input type="text" id="new-favorite-name" placeholder="名稱 (例如: 家、公司)">
+                        <input type="text" id="new-favorite-addr" placeholder="完整地址">
+                        <button id="add-favorite-btn">+</button>
+                    </div>
+                    <ul id="favorites-list" class="favorites-list">
+                        <!-- Favorites will be injected here via JS -->
+                    </ul>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; margin-top: 15px;">
+                    <button id="plan-route">規劃路線</button>
+                    <button id="clear-route">清除路線</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab View: Report Issue -->
+        <div class="view-pane" id="view-report">
+            <div class="report-page">
+                <h3>回報問題</h3>
+                <p class="report-desc">協助改善騎乘環境，請填寫下方資訊以回報道路狀況：</p>
+
+                <label>問題類型</label>
+                <select id="report-type" class="report-select"
+                    style="margin-bottom: 12px; width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; background: #f9f9f9; font-size: 14px;">
+                    <option value="" disabled selected>請選擇問題類型</option>
+                    <option value="pothole">路面坑洞</option>
+                    <option value="illegal_parking">違規停車 (佔用自行車道)</option>
+                    <option value="obstacle">道路障礙物</option>
+                    <option value="faded_lines">標線模糊或毀損</option>
+                    <option value="accident">事故發生</option>
+                    <option value="other">其他</option>
+                </select>
+
+                <label>發生地點</label>
+                <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                    <input type="text" id="report-location" placeholder="點擊右側按鈕取得目前位置或自行輸入"
+                        style="flex: 1; padding: 12px; margin-bottom: 0; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
+                    <button id="get-location-btn" title="取得目前位置"
+                        style="width: 44px; border: 1px solid #ddd; background: #f8f9fa; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <span style="font-size: 18px;">📍</span>
+                    </button>
+                </div>
+
+                <label style="display: block;">問題描述</label>
+                <textarea id="report-desc" placeholder="請簡短描述現場狀況..." rows="4"
+                    style="width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #ddd; background: #f9f9f9; font-size: 14px; resize: vertical;"></textarea>
+
+                <label style="display: block;">上傳照片 (選填)</label>
+                <input type="file" id="report-photo" accept="image/*" class="report-file-input"
+                    style="margin-bottom: 20px;">
+
+                <button id="submit-report-btn" class="submit-report-button"
+                    style="width: 100%; padding: 14px; background-color: #28a745; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s;">送出回報</button>
+            </div>
+        </div>
+
+        <div class="details">
+            <span id="close-details" style="float: right; cursor: pointer; font-size: 20px; color: #888;">&times;</span>
+
+            <div class="detail-header">
+                <div class="detail-label">
+                    <span class="header"></span>
+                </div>
+                <div class="safety-level">
+                    <span class="level"></span>
+                    <span>友善等級</span>
+                </div>
+            </div>
+
+            <div class="btns">
+                <button class="btn-toggle-1">fastest path</button>
+                <button class="btn-toggle-2">safest path</button>
+            </div>
+
+            <div class="stats">
+                <div class="stats-item">
+                    <div class="stats-label"><span>基礎設施</span><span class="score"></span></div>
+                    <div class="progress-bg">
+                        <div class="progress-fill" style="width: 85%;"></div>
+                    </div>
+                </div>
+                <div class="stats-item">
+                    <div class="stats-label"><span>交通環境風險</span><span class="score"></span></div>
+                    <div class="progress-bg">
+                        <div class="progress-fill" style="width: 85%;"></div>
+                    </div>
+                </div>
+                <div class="stats-item">
+                    <div class="stats-label"><span>歷史事故</span><span class="score"></span></div>
+                    <div class="progress-bg">
+                        <div class="progress-fill" style="width: 85%;"></div>
+                    </div>
+                </div>
+                <div class="stats-item">
+                    <div class="stats-label"><span>民眾意見</span><span class="score"></span></div>
+                    <div class="progress-bg">
+                        <div class="progress-fill" style="width: 85%;"></div>
+                    </div>
+                </div>
+
+            </div>
+
+
+        </div>
+        <div class="nav-bar">
+            <div class="nav-item"><span>Map</span></div>
+            <div class="nav-item"><span>Route suggestion</span></div>
+            <div class="nav-item"><span>Report</span></div>
+            <div class="nav-item"><span>More</span></div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/script.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/map_init.js"></script>
+    <script src="js/bikeLane.js"></script>
+    <script src="js/accidentLayer.js"></script>
+    <script src="js/youbikeLayer.js"></script>
+    <script src="js/routePlanner.js"></script>
+
+
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyASQFE3aw7me0PKehWBarABQADGKPEVO14&libraries=visualization,geometry&loading=async&callback=initMapApp"></script>
+</body>
+
+</html>

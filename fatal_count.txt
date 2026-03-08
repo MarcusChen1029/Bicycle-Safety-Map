@@ -1,0 +1,4 @@
+Total: 51791
+Fatal (死亡): 201
+Injury (輕傷): 51579
+Other (其他): 11
