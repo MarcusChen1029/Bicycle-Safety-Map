@@ -240,52 +240,20 @@ class RoutePlanner {
                 let maxScore = analysis.maxScore;
 
                 if (analysis.hasDangerousSteps) {
-                    console.log('⚠️ Dangerous segments detected. Attempting to find a safer detour using hybrid step logic...');
-                    const legSteps = analysis.bestRoute.legs[0].steps;
-                    const dangerInfo = analysis.dangerousStepInfo;
-                    const dangerIndex = dangerInfo.index;
-                    const dangerStep = dangerInfo.step;
+                    console.log('⚠️ Dangerous segments detected in the best initial route. Attempting to find a safer detour...');
+                    const badStep = analysis.dangerousStep;
+                    const A = badStep.start_location;
+                    const B = badStep.end_location;
 
-                    const centerLat = (dangerStep.start_location.lat() + dangerStep.end_location.lat()) / 2;
-                    const centerLng = (dangerStep.start_location.lng() + dangerStep.end_location.lng()) / 2;
-                    const centerOfDanger = new google.maps.LatLng(centerLat, centerLng);
-
-                    let nodeA = dangerStep.start_location;
-                    if (dangerIndex > 0) {
-                        const candidateA = legSteps[dangerIndex - 1].start_location;
-                        const distA = google.maps.geometry.spherical.computeDistanceBetween(candidateA, centerOfDanger);
-                        if (distA >= 50 && distA <= 300) {
-                            nodeA = candidateA;
-                        }
-                    }
-
-                    let nodeB = dangerStep.end_location;
-                    if (dangerIndex < legSteps.length - 1) {
-                        const candidateB = legSteps[dangerIndex + 1].end_location;
-                        const distB = google.maps.geometry.spherical.computeDistanceBetween(candidateB, centerOfDanger);
-                        if (distB >= 50 && distB <= 300) {
-                            nodeB = candidateB;
-                        }
-                    }
-
-                    const distAB = google.maps.geometry.spherical.computeDistanceBetween(nodeA, nodeB);
-                    const headingAB = google.maps.geometry.spherical.computeHeading(nodeA, nodeB);
-
-                    if (distAB > 1000) {
-                        console.log('  -> Step distance too long, using 150m offset fallback');
-                        nodeA = google.maps.geometry.spherical.computeOffset(centerOfDanger, 150, headingAB + 180);
-                        nodeB = google.maps.geometry.spherical.computeOffset(centerOfDanger, 150, headingAB);
-                    } else {
-                        console.log('  -> Using valid intersection steps for detour anchor');
-                    }
-
-                    const detourMidpoint = new google.maps.LatLng(
-                        (nodeA.lat() + nodeB.lat()) / 2,
-                        (nodeA.lng() + nodeB.lng()) / 2
+                    const midpoint = new google.maps.LatLng(
+                        (A.lat() + B.lat()) / 2,
+                        (A.lng() + B.lng()) / 2
                     );
 
-                    const detourLeft = google.maps.geometry.spherical.computeOffset(detourMidpoint, 200, headingAB - 90);
-                    const detourRight = google.maps.geometry.spherical.computeOffset(detourMidpoint, 200, headingAB + 90);
+                    const heading = google.maps.geometry.spherical.computeHeading(A, B);
+                    // Create waypoints 200 meters to the left and right of the dangerous segment's midpoint
+                    const detourLeft = google.maps.geometry.spherical.computeOffset(midpoint, 200, heading - 90);
+                    const detourRight = google.maps.geometry.spherical.computeOffset(midpoint, 200, heading + 90);
 
                     const requestLeft = { ...request, waypoints: [{ location: detourLeft, stopover: false }], provideRouteAlternatives: true };
                     const requestRight = { ...request, waypoints: [{ location: detourRight, stopover: false }], provideRouteAlternatives: true };
@@ -409,8 +377,7 @@ class RoutePlanner {
 
         let maxScore = -Infinity;
         let bestRouteIndex = validRoutes[0].index;
-        let bestRoute = validRoutes[0].route;
-        let bestRouteDangerousStepInfo = null;
+        let bestRouteDangerousStep = null;
 
         validRoutes.forEach((item) => {
             const evalResult = this.calculateRouteScore(item.route, item.isShortest);
@@ -419,24 +386,22 @@ class RoutePlanner {
             if (evalResult.totalScore > maxScore) {
                 maxScore = evalResult.totalScore;
                 bestRouteIndex = item.index;
-                bestRoute = item.route;
 
                 const dangerousSteps = evalResult.stepEvaluations.filter(s => s.isDangerous);
                 if (dangerousSteps.length > 0) {
-                    bestRouteDangerousStepInfo = dangerousSteps[0];
+                    bestRouteDangerousStep = dangerousSteps[0].step;
                 } else {
-                    bestRouteDangerousStepInfo = null;
+                    bestRouteDangerousStep = null;
                 }
             }
         });
 
         return {
             bestRouteIndex,
-            bestRoute,
             maxScore,
             shortestDistance,
-            dangerousStepInfo: bestRouteDangerousStepInfo,
-            hasDangerousSteps: bestRouteDangerousStepInfo !== null
+            dangerousStep: bestRouteDangerousStep,
+            hasDangerousSteps: bestRouteDangerousStep !== null
         };
     }
 
@@ -504,7 +469,7 @@ class RoutePlanner {
 
                 console.log(`  - Step ${index + 1}: Score = ${stepScore} [${reasons.join(', ') || 'No points'}] | Dist: ${step.distance.text}`);
 
-                stepEvaluations.push({ step, index, score: stepScore, reasons, accidentCount, isDangerous });
+                stepEvaluations.push({ step, score: stepScore, reasons, accidentCount, isDangerous });
                 totalScore += stepScore;
             });
         });
