@@ -2,10 +2,15 @@ class BikeMapApp {
   constructor() {
     this.mapInitializer = null;
     this.map = null;
-    this.map = null;
     this.bikeLaneLayer = null;
     this.accidentLayer = null;
     this.youbikeLayer = null;
+
+    // GPS 即時追蹤相關
+    this.watchId = null;           // watchPosition 的 ID
+    this.userMarker = null;        // 使用者位置標記
+    this.userAccuracyCircle = null; // GPS 精度圈
+    this.currentPosition = null;   // 最新的位置資料 { lat, lng, speed, heading, accuracy }
   }
 
   /**
@@ -36,7 +41,13 @@ class BikeMapApp {
       // Initialize Route Planner
       this.routePlanner = new RoutePlanner(this.map, this.accidentLayer, this.youbikeLayer, this.bikeLaneLayer);
 
+      // Expose routePlanner globally for feedback modal access
+      window._routePlannerRef = this.routePlanner;
+
       this.bindEvents();
+
+      // 啟動 GPS 即時追蹤
+      this.startLocationTracking();
 
       console.log('✅ 應用程式初始化完成！');
     } catch (error) {
@@ -133,6 +144,257 @@ class BikeMapApp {
         }
       });
     }
+
+    // 「使用目前位置」按鈕 → 自動填入起點
+    const useMyLocBtn = document.getElementById('use-my-location-btn');
+    if (useMyLocBtn) {
+      useMyLocBtn.addEventListener('click', () => {
+        if (this.currentPosition) {
+          const startInput = document.getElementById('start-point');
+          if (startInput) {
+            startInput.value = `${this.currentPosition.lat.toFixed(6)}, ${this.currentPosition.lng.toFixed(6)}`;
+            console.log('📍 已自動填入目前位置為起點');
+          }
+        } else {
+          alert('尚未取得 GPS 位置，請允許定位權限並稍候。');
+        }
+      });
+    }
+
+    // 回報頁面的定位按鈕 → 使用真實 GPS
+    const getLocBtn = document.getElementById('get-location-btn');
+    if (getLocBtn) {
+      // 移除 script.js 中的 mock handler，改用真實 GPS
+      getLocBtn.replaceWith(getLocBtn.cloneNode(true));
+      const newGetLocBtn = document.getElementById('get-location-btn');
+      newGetLocBtn.addEventListener('click', () => {
+        if (this.currentPosition) {
+          const reportLocInput = document.getElementById('report-location');
+          if (reportLocInput) {
+            reportLocInput.value = `${this.currentPosition.lat.toFixed(6)}, ${this.currentPosition.lng.toFixed(6)}`;
+            // 嘗試反向地理編碼取得地址
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({
+              location: { lat: this.currentPosition.lat, lng: this.currentPosition.lng }
+            }, (results, status) => {
+              if (status === 'OK' && results[0]) {
+                reportLocInput.value = results[0].formatted_address;
+              }
+            });
+          }
+        } else {
+          alert('尚未取得 GPS 位置，請允許定位權限並稍候。');
+        }
+      });
+    }
+  }
+
+  // ================================================================
+  // GPS 即時追蹤 (Real-time Location Tracking)
+  // ================================================================
+
+  /**
+   * 啟動 GPS 即時追蹤
+   * 先嘗試高精度 (GPS)，失敗則自動降級為 Wi-Fi/IP 定位
+   * 然後用 watchPosition 持續追蹤
+   */
+  startLocationTracking() {
+    if (!navigator.geolocation) {
+      console.warn('⚠️ 此瀏覽器不支援 Geolocation API');
+      return;
+    }
+
+    // 檢查是否為安全環境 (HTTPS 或 localhost)
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+      console.warn('⚠️ Geolocation API 需要安全環境 (HTTPS 或 localhost)');
+      console.warn('   目前協定：' + location.protocol + '，主機：' + location.hostname);
+      console.warn('   💡 請用 Live Server 或 http-server 開啟此頁面');
+      return;
+    }
+
+    console.log('📡 啟動 GPS 定位...');
+
+    // 位置更新的共用 callback
+    const onPositionUpdate = (position) => {
+      const latitude = position.coords.latitude;    // 緯度
+      const longitude = position.coords.longitude;  // 經度
+      const speed = position.coords.speed;           // 速度 (公尺/秒)
+      const heading = position.coords.heading;       // 移動方向 (角度)
+      const accuracy = position.coords.accuracy;     // 精度 (公尺)
+
+      // 儲存最新位置
+      this.currentPosition = {
+        lat: latitude,
+        lng: longitude,
+        speed: speed,
+        heading: heading,
+        accuracy: accuracy
+      };
+
+      console.log(`📍 目前位置：${latitude.toFixed(5)}, ${longitude.toFixed(5)}，精度：${accuracy?.toFixed(0)}m，方向：${heading}，速度：${speed} m/s`);
+
+      // 更新地圖上的使用者位置標記
+      this._updateUserMarker(latitude, longitude, accuracy);
+    };
+
+    // 錯誤處理的共用 callback
+    const onPositionError = (error, context) => {
+      const codeMap = { 1: 'PERMISSION_DENIED', 2: 'POSITION_UNAVAILABLE', 3: 'TIMEOUT' };
+      console.warn(`⚠️ [${context}] 定位失敗 - code: ${error.code} (${codeMap[error.code] || 'UNKNOWN'}), message: ${error.message}`);
+    };
+
+    // 啟動持續追蹤（使用低精度，相容性最好）
+    const startWatch = (highAccuracy) => {
+      const mode = highAccuracy ? '高精度 GPS' : '一般定位 (Wi-Fi/IP)';
+      console.log(`📡 啟動 watchPosition（${mode}）...`);
+
+      this.watchId = navigator.geolocation.watchPosition(
+        onPositionUpdate,
+        (error) => {
+          onPositionError(error, `watchPosition ${mode}`);
+
+          // 如果高精度模式失敗，自動降級重試
+          if (highAccuracy && (error.code === 2 || error.code === 3)) {
+            console.log('🔄 高精度定位失敗，自動切換為一般定位...');
+            navigator.geolocation.clearWatch(this.watchId);
+            startWatch(false);
+          }
+        },
+        {
+          enableHighAccuracy: highAccuracy,
+          timeout: highAccuracy ? 10000 : 30000,  // 一般定位給更長時間
+          maximumAge: highAccuracy ? 0 : 60000     // 一般定位可用 1 分鐘內快取
+        }
+      );
+    };
+
+    // 先用一次性 getCurrentPosition 快速取得位置
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        console.log('✅ 初始定位成功！');
+        onPositionUpdate(position);
+        // 初始定位成功後，啟動持續追蹤（嘗試高精度）
+        startWatch(true);
+      },
+      (error) => {
+        onPositionError(error, 'getCurrentPosition 初始定位');
+
+        // 初始高精度失敗 → 改用一般定位再試一次
+        if (error.code === 2 || error.code === 3) {
+          console.log('🔄 高精度初始定位失敗，改用一般定位...');
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              console.log('✅ 一般定位成功！');
+              onPositionUpdate(position);
+              startWatch(false);
+            },
+            (error2) => {
+              onPositionError(error2, 'getCurrentPosition 一般定位');
+              // 即使 getCurrentPosition 都失敗，仍啟動 watchPosition 試試看
+              console.log('📡 getCurrentPosition 皆失敗，仍啟動 watchPosition 持續嘗試...');
+              startWatch(false);
+            },
+            { enableHighAccuracy: false, timeout: 30000, maximumAge: 60000 }
+          );
+        } else {
+          // PERMISSION_DENIED → 不再重試
+          console.warn('🚫 使用者拒絕了定位權限，無法追蹤位置');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }
+
+  /**
+   * 停止 GPS 追蹤
+   */
+  stopLocationTracking() {
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+      console.log('🛑 GPS 追蹤已停止');
+    }
+
+    // 移除地圖上的使用者標記
+    if (this.userMarker) {
+      this.userMarker.setMap(null);
+      this.userMarker = null;
+    }
+    if (this.userAccuracyCircle) {
+      this.userAccuracyCircle.setMap(null);
+      this.userAccuracyCircle = null;
+    }
+  }
+
+  /**
+   * 更新地圖上的使用者位置標記（藍色圓點 + 精度圈）
+   */
+  _updateUserMarker(lat, lng, accuracy) {
+    if (!this.map) return;
+
+    const position = { lat, lng };
+
+    if (!this.userMarker) {
+      // 首次建立標記 — 藍色圓點
+      this.userMarker = new google.maps.Marker({
+        position: position,
+        map: this.map,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: '#4285F4',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2
+        },
+        title: '你的位置',
+        zIndex: 999
+      });
+
+      // 精度圈
+      this.userAccuracyCircle = new google.maps.Circle({
+        map: this.map,
+        center: position,
+        radius: accuracy || 50,
+        fillColor: '#4285F4',
+        fillOpacity: 0.1,
+        strokeColor: '#4285F4',
+        strokeOpacity: 0.3,
+        strokeWeight: 1,
+        clickable: false
+      });
+
+      // 第一次定位到使用者位置時，將地圖中心移過去
+      this.map.setCenter(position);
+      this.map.setZoom(16);
+      console.log('🎯 已定位到使用者位置');
+    } else {
+      // 更新既有標記位置
+      this.userMarker.setPosition(position);
+      this.userAccuracyCircle.setCenter(position);
+      this.userAccuracyCircle.setRadius(accuracy || 50);
+    }
+  }
+
+  /**
+   * 取得目前位置的地址（反向地理編碼）
+   * @returns {Promise<string>} 地址文字
+   */
+  async getCurrentLocationAddress() {
+    if (!this.currentPosition) return null;
+
+    const geocoder = new google.maps.Geocoder();
+    return new Promise((resolve, reject) => {
+      geocoder.geocode({
+        location: { lat: this.currentPosition.lat, lng: this.currentPosition.lng }
+      }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          resolve(results[0].formatted_address);
+        } else {
+          resolve(`${this.currentPosition.lat.toFixed(6)}, ${this.currentPosition.lng.toFixed(6)}`);
+        }
+      });
+    });
   }
 
   async handleRoutePlanning() {

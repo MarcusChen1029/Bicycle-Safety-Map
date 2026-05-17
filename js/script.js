@@ -151,3 +151,268 @@ function initMap() {
         center: taipei,
     });
 }
+
+// ================================================================
+// 騎乘回饋 Modal - UI Logic (Feedback Modal)
+// ================================================================
+
+// Current ratings state
+let _feedbackRatings = { safety: 0, smoothness: 0 };
+
+const _scoreLabels = {
+    0: '尚未評分',
+    1: '1★ 很差',
+    2: '2★ 不佳',
+    3: '3★ 普通',
+    4: '4★ 良好',
+    5: '5★ 非常好'
+};
+
+/**
+ * Show the feedback modal
+ * Called from routePlanner.clearRoute()
+ */
+function showFeedbackModal() {
+    const modal = document.getElementById('feedback-modal');
+    if (!modal) return;
+
+    // Reset ratings
+    _feedbackRatings = { safety: 0, smoothness: 0 };
+    _resetStars();
+
+    modal.style.display = 'flex';
+    console.log('📋 Feedback modal shown');
+}
+
+/**
+ * Hide the feedback modal
+ */
+function hideFeedbackModal() {
+    const modal = document.getElementById('feedback-modal');
+    if (!modal) return;
+
+    modal.style.display = 'none';
+    console.log('📋 Feedback modal hidden');
+}
+
+/**
+ * Reset all star selections and score texts
+ */
+function _resetStars() {
+    document.querySelectorAll('.feedback-star').forEach(star => {
+        star.classList.remove('active', 'hover-preview');
+    });
+
+    const safetyText = document.getElementById('safety-score-text');
+    const smoothnessText = document.getElementById('smoothness-score-text');
+
+    if (safetyText) {
+        safetyText.textContent = _scoreLabels[0];
+        safetyText.classList.remove('scored');
+    }
+    if (smoothnessText) {
+        smoothnessText.textContent = _scoreLabels[0];
+        smoothnessText.classList.remove('scored');
+    }
+}
+
+/**
+ * Set stars visual state for a given dimension
+ */
+function _setStars(dimension, value) {
+    const container = document.querySelector(`.feedback-stars[data-dimension="${dimension}"]`);
+    if (!container) return;
+
+    container.querySelectorAll('.feedback-star').forEach(star => {
+        const starVal = parseInt(star.dataset.value);
+        if (starVal <= value) {
+            star.classList.add('active');
+        } else {
+            star.classList.remove('active');
+        }
+    });
+
+    // Update score text
+    const textEl = document.getElementById(`${dimension}-score-text`);
+    if (textEl) {
+        textEl.textContent = _scoreLabels[value] || _scoreLabels[0];
+        if (value > 0) {
+            textEl.classList.add('scored');
+        } else {
+            textEl.classList.remove('scored');
+        }
+    }
+}
+
+/**
+ * Update the "民眾意見" (Public Opinion) progress bar
+ * This targets the 4th stats-item (index 3) in each .stats container
+ * @param {number} score - 0-100 scale
+ */
+function updatePublicOpinionStat(score) {
+    const statsContainers = document.querySelectorAll('.stats');
+
+    statsContainers.forEach(container => {
+        const statItems = container.querySelectorAll('.stats-item');
+        // The 4th item (index 3) is "民眾意見"
+        if (statItems.length >= 4) {
+            const opinionItem = statItems[3];
+            const scoreEl = opinionItem.querySelector('.score');
+            const progressFill = opinionItem.querySelector('.progress-fill');
+
+            if (scoreEl) {
+                scoreEl.textContent = score;
+            }
+
+            if (progressFill) {
+                const widthValue = Math.min(Math.max(score, 0), 100);
+                progressFill.style.width = widthValue + '%';
+                progressFill.style.transition = 'width 0.6s ease, background-color 0.6s ease';
+
+                if (widthValue < 60) {
+                    progressFill.style.backgroundColor = '#dc3545';
+                } else if (widthValue < 80) {
+                    progressFill.style.backgroundColor = '#ffc107';
+                } else {
+                    progressFill.style.backgroundColor = '#28a745';
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Show a toast notification
+ */
+function showFeedbackToast(message) {
+    // Remove any existing toast
+    const existingToast = document.querySelector('.feedback-toast');
+    if (existingToast) existingToast.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'feedback-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    // Auto-remove after animation
+    setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+    }, 2800);
+}
+
+// ================================================================
+// Feedback Modal Event Bindings (runs on DOMContentLoaded)
+// ================================================================
+document.addEventListener('DOMContentLoaded', () => {
+
+    // Star click and hover events
+    document.querySelectorAll('.feedback-stars').forEach(container => {
+        const dimension = container.dataset.dimension;
+        const stars = container.querySelectorAll('.feedback-star');
+
+        stars.forEach(star => {
+            // Click to select
+            star.addEventListener('click', () => {
+                const value = parseInt(star.dataset.value);
+                _feedbackRatings[dimension] = value;
+                _setStars(dimension, value);
+            });
+
+            // Hover preview
+            star.addEventListener('mouseenter', () => {
+                const value = parseInt(star.dataset.value);
+                stars.forEach(s => {
+                    const sVal = parseInt(s.dataset.value);
+                    if (sVal <= value) {
+                        s.classList.add('hover-preview');
+                    } else {
+                        s.classList.remove('hover-preview');
+                    }
+                });
+            });
+
+            star.addEventListener('mouseleave', () => {
+                stars.forEach(s => s.classList.remove('hover-preview'));
+            });
+        });
+    });
+
+    // Submit button
+    const submitBtn = document.getElementById('feedback-submit-btn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+            if (_feedbackRatings.safety === 0 || _feedbackRatings.smoothness === 0) {
+                alert('請為安全性和順暢度都進行評分！');
+                return;
+            }
+
+            // Disable button to prevent double-submit
+            submitBtn.disabled = true;
+            submitBtn.textContent = '送出中...';
+
+            try {
+                // Access the global app's routePlanner to save feedback
+                if (window.initMapApp && window.initMapApp._appInstance) {
+                    await window.initMapApp._appInstance.routePlanner.saveFeedbackToFirebase(
+                        _feedbackRatings.safety,
+                        _feedbackRatings.smoothness
+                    );
+                } else {
+                    // Fallback: try to find routePlanner from global scope
+                    // The planRoute button handler in main.js creates the instance
+                    // We need a reference - store it on window when created
+                    if (window._routePlannerRef) {
+                        await window._routePlannerRef.saveFeedbackToFirebase(
+                            _feedbackRatings.safety,
+                            _feedbackRatings.smoothness
+                        );
+                    } else {
+                        console.warn('No routePlanner reference found, saving directly to Firebase');
+                        await feedbackDB.saveFeedback({
+                            safetyScore: _feedbackRatings.safety,
+                            smoothnessScore: _feedbackRatings.smoothness,
+                            averageScore: (_feedbackRatings.safety + _feedbackRatings.smoothness) / 2,
+                            steps: [],
+                            overviewPath: []
+                        });
+                    }
+                }
+
+                hideFeedbackModal();
+                showFeedbackToast('✅ 感謝您的回饋！');
+            } catch (error) {
+                console.error('Failed to save feedback:', error);
+                alert('回饋送出失敗，請稍後再試。');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '送出回饋';
+            }
+        });
+    }
+
+    // Skip button
+    const skipBtn = document.getElementById('feedback-skip-btn');
+    if (skipBtn) {
+        skipBtn.addEventListener('click', () => {
+            hideFeedbackModal();
+            // Clear lastRoute reference so it won't trigger again
+            if (window._routePlannerRef) {
+                window._routePlannerRef.lastRoute = null;
+                window._routePlannerRef.lastFinalResult = null;
+            }
+        });
+    }
+
+    // Click outside modal to close
+    const modalOverlay = document.getElementById('feedback-modal');
+    if (modalOverlay) {
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) {
+                hideFeedbackModal();
+            }
+        });
+    }
+
+    // Initialize public opinion bar with default score (70 = B grade)
+    updatePublicOpinionStat(70);
+});

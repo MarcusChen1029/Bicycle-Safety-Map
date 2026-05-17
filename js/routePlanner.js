@@ -7,8 +7,6 @@ class RoutePlanner {
         this.directionsService = new google.maps.DirectionsService();
         this.directionsRenderer = new google.maps.DirectionsRenderer({
             map: this.map,
-            // Custom styling for the route line if needed, can use config values
-            // Start with default, will be overridden by safety style
             polylineOptions: {
                 strokeColor: '#4285f4',
                 strokeWeight: 6,
@@ -21,7 +19,30 @@ class RoutePlanner {
         this.bindFavoriteEvents();
         this.renderFavorites();
 
+        // Feedback: store last planned route for post-ride feedback
+        this.lastRoute = null;
+        this.lastFinalResult = null;
+
+        // Pre-load Firebase opinions cache
+        this._opinionsCache = null;
+        this._loadOpinionsCache();
+
         console.log('✅ RoutePlanner initialized');
+    }
+
+    /**
+     * Pre-load opinions from Firebase into local cache for scoring
+     */
+    async _loadOpinionsCache() {
+        try {
+            if (typeof feedbackDB !== 'undefined') {
+                this._opinionsCache = await feedbackDB.getAllFeedback();
+                console.log(`📊 Loaded ${this._opinionsCache.length} opinion entries for scoring`);
+            }
+        } catch (e) {
+            console.warn('Could not pre-load opinions cache:', e);
+            this._opinionsCache = [];
+        }
     }
 
     /**
@@ -241,41 +262,51 @@ class RoutePlanner {
 
                 if (analysis.hasDangerousSteps) {
                     console.log('⚠️ Dangerous segments detected in the best initial route. Attempting to find a safer detour...');
-                    const badStep = analysis.dangerousStep;
-                    const A = badStep.start_location;
-                    const B = badStep.end_location;
 
-                    const midpoint = new google.maps.LatLng(
-                        (A.lat() + B.lat()) / 2,
-                        (A.lng() + B.lng()) / 2
+                    // Use the route's actual origin & destination to calculate waypoint
+                    // This avoids loops caused by placing waypoints near dangerous steps close to start/end
+                    const bestRoute = result.routes[analysis.bestRouteIndex];
+                    const routeOrigin = bestRoute.legs[0].start_location;
+                    const routeDestination = bestRoute.legs[bestRoute.legs.length - 1].end_location;
+
+                    // Midpoint of the overall journey (not the dangerous step)
+                    const routeMidpoint = new google.maps.LatLng(
+                        (routeOrigin.lat() + routeDestination.lat()) / 2,
+                        (routeOrigin.lng() + routeDestination.lng()) / 2
                     );
 
-                    const heading = google.maps.geometry.spherical.computeHeading(A, B);
-                    // Create waypoints 200 meters to the left and right of the dangerous segment's midpoint
-                    const detourLeft = google.maps.geometry.spherical.computeOffset(midpoint, 200, heading - 90);
-                    const detourRight = google.maps.geometry.spherical.computeOffset(midpoint, 200, heading + 90);
+                    // Direction from origin to destination
+                    const routeHeading = google.maps.geometry.spherical.computeHeading(routeOrigin, routeDestination);
 
-                    const requestLeft = { ...request, waypoints: [{ location: detourLeft, stopover: false }], provideRouteAlternatives: true };
-                    const requestRight = { ...request, waypoints: [{ location: detourRight, stopover: false }], provideRouteAlternatives: true };
+                    console.log(`📐 Route heading: ${routeHeading.toFixed(0)}°, placing waypoints perpendicular at route midpoint`);
+
+                    // Try multiple detour distances perpendicular to overall travel direction
+                    const detourDistances = [500, 1000];
 
                     try {
-                        const [resLeft, resRight] = await Promise.all([
-                            this.calculateRoute(requestLeft).catch(e => null),
-                            this.calculateRoute(requestRight).catch(e => null)
-                        ]);
+                        const detourPromises = [];
+                        const detourLabels = [];
+                        for (const dist of detourDistances) {
+                            // Offset perpendicular to the travel direction (left = heading-90, right = heading+90)
+                            const dLeft = google.maps.geometry.spherical.computeOffset(routeMidpoint, dist, routeHeading - 90);
+                            const dRight = google.maps.geometry.spherical.computeOffset(routeMidpoint, dist, routeHeading + 90);
+                            detourPromises.push(
+                                this.calculateRoute({ ...request, waypoints: [{ location: dLeft, stopover: false }], provideRouteAlternatives: true }).catch(e => null),
+                                this.calculateRoute({ ...request, waypoints: [{ location: dRight, stopover: false }], provideRouteAlternatives: true }).catch(e => null)
+                            );
+                            detourLabels.push(`Detour Left ${dist}m`, `Detour Right ${dist}m`);
+                        }
+                        const detourResults = await Promise.all(detourPromises);
 
                         let allResults = [];
                         allResults.push({ name: 'Original', result: result, analysis: analysis });
-                        if (resLeft) {
-                            const lAnalysis = this.analyzeRoutes(resLeft, analysis.shortestDistance);
-                            console.log(`[Pass 2: Left Detour] Found ${resLeft.routes.length} routes. Max score: ${lAnalysis.maxScore}`);
-                            allResults.push({ name: 'Detour Left', result: resLeft, analysis: lAnalysis });
-                        }
-                        if (resRight) {
-                            const rAnalysis = this.analyzeRoutes(resRight, analysis.shortestDistance);
-                            console.log(`[Pass 2: Right Detour] Found ${resRight.routes.length} routes. Max score: ${rAnalysis.maxScore}`);
-                            allResults.push({ name: 'Detour Right', result: resRight, analysis: rAnalysis });
-                        }
+                        detourResults.forEach((res, i) => {
+                            if (res) {
+                                const dAnalysis = this.analyzeRoutes(res, analysis.shortestDistance);
+                                console.log(`[Pass 2: ${detourLabels[i]}] Found ${res.routes.length} routes. Max score: ${dAnalysis.maxScore.toFixed(2)}`);
+                                allResults.push({ name: detourLabels[i], result: res, analysis: dAnalysis });
+                            }
+                        });
 
                         let bestDetourScore = maxScore;
                         allResults.forEach(resItem => {
@@ -284,7 +315,7 @@ class RoutePlanner {
                                 finalResult = resItem.result;
                                 selectedRouteIndex = resItem.analysis.bestRouteIndex;
                                 maxScore = bestDetourScore;
-                                console.log(`👉 Better route found via ${resItem.name} pass (Score: ${bestDetourScore})`);
+                                console.log(`👉 Better route found via ${resItem.name} pass (Score: ${bestDetourScore.toFixed(2)})`);
                             }
                         });
                     } catch (detourError) {
@@ -341,9 +372,10 @@ class RoutePlanner {
             const routeLeg = finalResult.routes[selectedRouteIndex].legs[0];
             console.log(`📏 Distance: ${routeLeg.distance.text}, ⏱️ Duration: ${routeLeg.duration.text}`);
 
-            // Inform user about the safety choice
-            // You might want to update a UI element here instead of alert/log
-            // alert(`Selected safest route (Risk: ${minRiskScore})`);
+            // ✅ Store last route for post-ride feedback
+            this.lastRoute = finalResult.routes[selectedRouteIndex];
+            this.lastFinalResult = finalResult;
+            console.log('📌 Last route stored for feedback');
 
         } catch (error) {
             console.error('❌ Direction request failed due to ' + error);
@@ -414,10 +446,13 @@ class RoutePlanner {
     calculateRouteScore(route, isShortest) {
         let totalScore = 0;
         let stepEvaluations = [];
+        let publicOpinionTotalScore = 0;
+        let publicOpinionStepCount = 0;
 
         const accidents = (this.accidentLayer && this.accidentLayer.data) ? this.accidentLayer.data : [];
         const bikeLanesPolys = (this.bikeLaneLayer && this.bikeLaneLayer.polylines) ? this.bikeLaneLayer.polylines : [];
         const bounds = route.bounds;
+        const opinions = this._opinionsCache || [];
 
         const relevantAccidents = accidents.filter(acc => bounds.contains(acc.position));
 
@@ -452,29 +487,99 @@ class RoutePlanner {
 
                 let accidentCount = 0;
                 relevantAccidents.forEach(acc => {
-                    if (google.maps.geometry.poly.isLocationOnEdge(acc.position, stepPolyline, 0.0003)) { // ~30m tolerance
+                    if (google.maps.geometry.poly.isLocationOnEdge(acc.position, stepPolyline, 0.0003)) {
                         accidentCount++;
                     }
                 });
 
-                if (accidentCount > 50) {
-                    stepScore -= 2;
-                    reasons.push(`Accidents x${accidentCount} (-2)`);
-                    isDangerous = true;
-                } else if (accidentCount > 30) {
-                    stepScore -= 1;
-                    reasons.push(`Accidents x${accidentCount} (-1)`);
-                    isDangerous = true;
+                if (accidentCount > 0) {
+                    // Scale penalty proportionally: every 15 accidents = -1 point
+                    // Also factor in density (accidents per km) for fairness
+                    const stepDistKm = (step.distance ? step.distance.value : 500) / 1000;
+                    const density = accidentCount / Math.max(stepDistKm, 0.1); // accidents per km
+                    const accidentPenalty = -(accidentCount / 15);
+                    stepScore += accidentPenalty;
+                    reasons.push(`Accidents x${accidentCount} (${accidentPenalty.toFixed(1)}, density:${density.toFixed(0)}/km)`);
+
+                    // Mark as dangerous if high density (>30/km) or high raw count (>15)
+                    if (density > 30 || accidentCount > 15) {
+                        isDangerous = true;
+                    }
                 }
 
-                console.log(`  - Step ${index + 1}: Score = ${stepScore} [${reasons.join(', ') || 'No points'}] | Dist: ${step.distance.text}`);
+                // ========================================================
+                // 民眾意見 (Public Opinion) Evaluation - Firebase data
+                // ========================================================
+                if (opinions.length > 0) {
+                    // Find overlapping feedback for this step
+                    const matchingOpinions = opinions.filter(entry => {
+                        if (!entry.steps || entry.steps.length === 0) return false;
+                        return entry.steps.some(savedStep => {
+                            const savedLatLng = new google.maps.LatLng(savedStep.lat, savedStep.lng);
+                            return google.maps.geometry.poly.isLocationOnEdge(savedLatLng, stepPolyline, 0.0005);
+                        });
+                    });
+
+                    if (matchingOpinions.length > 0) {
+                        // Calculate average score from safety + smoothness
+                        let totalOpinionScore = 0;
+                        matchingOpinions.forEach(op => {
+                            const avg = ((op.safetyScore || 3) + (op.smoothnessScore || 3)) / 2;
+                            totalOpinionScore += avg;
+                        });
+                        const averageScore = totalOpinionScore / matchingOpinions.length;
+                        const sampleSize = matchingOpinions.length;
+
+                        // Track for stats display
+                        publicOpinionTotalScore += averageScore;
+                        publicOpinionStepCount++;
+
+                        // Apply penalty W formula: more reports = higher confidence = stronger penalty
+                        // W = (3 - avg_score) * confidence_multiplier
+                        // confidence grows with sample size using log scale, capped at 3x
+                        if (averageScore < 3) {
+                            const confidence = Math.min(Math.log2(sampleSize + 1), 3);
+                            const W = (3 - averageScore) * confidence;
+                            stepScore -= W;
+                            reasons.push(`Public Opinion W=-${W.toFixed(2)} (avg:${averageScore.toFixed(1)}, n:${sampleSize}, conf:${confidence.toFixed(1)})`);
+                        }
+
+                        // Hidden danger zone: average < 2.5 → extra -2
+                        if (averageScore < 2.5) {
+                            stepScore -= 2;
+                            isDangerous = true;
+                            reasons.push(`Hidden Danger Zone (avg:${averageScore.toFixed(1)} < 2.5, -2)`);
+                        }
+                    }
+                }
+
+                console.log(`  - Step ${index + 1}: Score = ${stepScore.toFixed(2)} [${reasons.join(', ') || 'No points'}] | Dist: ${step.distance.text}`);
 
                 stepEvaluations.push({ step, score: stepScore, reasons, accidentCount, isDangerous });
                 totalScore += stepScore;
             });
         });
 
-        return { totalScore, stepEvaluations };
+        // Update Public Opinion stats bar
+        const opinionBarScore = this._computePublicOpinionBarScore(publicOpinionTotalScore, publicOpinionStepCount, opinions.length);
+        if (typeof updatePublicOpinionStat === 'function') {
+            updatePublicOpinionStat(opinionBarScore);
+        }
+
+        return { totalScore, stepEvaluations, publicOpinionScore: opinionBarScore };
+    }
+
+    /**
+     * Compute the public opinion bar score (0-100 scale)
+     * Default: 70 (B grade) if no data exists
+     */
+    _computePublicOpinionBarScore(totalScore, stepCount, totalOpinions) {
+        if (totalOpinions === 0 || stepCount === 0) {
+            return 70; // Default B-grade baseline
+        }
+        const avgStepScore = totalScore / stepCount; // 1-5 scale
+        // Convert 1-5 scale to 0-100: ((score - 1) / 4) * 100
+        return Math.round(((avgStepScore - 1) / 4) * 100);
     }
 
     /**
@@ -496,21 +601,127 @@ class RoutePlanner {
      * Clear the current route from the map
      */
     clearRoute() {
-        this.directionsRenderer.setMap(null); // Remove from map
-        // Re-bind to map to be ready for next route, or just setMap(null) creates a detached renderer, 
-        // usually safer to just setDirections({routes: []}) or re-instantiate, or setMap(map) again when needed.
-        // Standard way to clear is setDirections to null, but DirectionsRenderer behavior varies.
-        // Simplest:
+        // Trigger feedback modal if a route was planned
+        if (this.lastRoute) {
+            console.log('📋 Route exists, showing feedback modal...');
+            if (typeof showFeedbackModal === 'function') {
+                showFeedbackModal();
+            }
+        }
+
+        this.directionsRenderer.setMap(null);
         this.directionsRenderer.setDirections({ routes: [] });
 
         if (this.youbikeLayer) {
-            this.youbikeLayer.setRoutePath(null); // Clear active route
+            this.youbikeLayer.setRoutePath(null);
         }
 
-        // Also clear inputs?
         document.getElementById('start-point').value = '';
         document.getElementById('end-point').value = '';
 
         console.log('🗑️ Route cleared');
+    }
+
+    /**
+     * Save user feedback to Firebase via FeedbackDB
+     * Extracts key path segments from lastRoute and stores with ratings
+     * @param {number} safetyScore - 1-5 star rating for safety
+     * @param {number} smoothnessScore - 1-5 star rating for smoothness
+     */
+    async saveFeedbackToFirebase(safetyScore, smoothnessScore) {
+        if (!this.lastRoute) {
+            console.warn('No lastRoute to save feedback for');
+            return;
+        }
+
+        // Extract key path points from each step for coordinate matching
+        const steps = [];
+        this.lastRoute.legs.forEach(leg => {
+            leg.steps.forEach(step => {
+                // Save start, end, and midpoint of each step
+                steps.push({
+                    lat: step.start_location.lat(),
+                    lng: step.start_location.lng()
+                });
+                steps.push({
+                    lat: step.end_location.lat(),
+                    lng: step.end_location.lng()
+                });
+                // Add midpoint for better matching density
+                const midIdx = Math.floor(step.path.length / 2);
+                if (step.path[midIdx]) {
+                    steps.push({
+                        lat: step.path[midIdx].lat(),
+                        lng: step.path[midIdx].lng()
+                    });
+                }
+            });
+        });
+
+        // Build the overview path for broader matching
+        const overviewPath = this.lastRoute.overview_path
+            ? this.lastRoute.overview_path.map(p => ({ lat: p.lat(), lng: p.lng() }))
+            : [];
+
+        const feedbackData = {
+            safetyScore: safetyScore,
+            smoothnessScore: smoothnessScore,
+            averageScore: (safetyScore + smoothnessScore) / 2,
+            steps: steps,
+            overviewPath: overviewPath,
+            routeSummary: this.lastRoute.summary || '',
+            distance: this.lastRoute.legs[0] ? this.lastRoute.legs[0].distance.text : '',
+            duration: this.lastRoute.legs[0] ? this.lastRoute.legs[0].duration.text : ''
+        };
+
+        // Save to Firebase
+        const docId = await feedbackDB.saveFeedback(feedbackData);
+
+        // Refresh opinions cache for future scoring
+        await this._loadOpinionsCache();
+
+        // Clear lastRoute after saving
+        this.lastRoute = null;
+        this.lastFinalResult = null;
+
+        return docId;
+    }
+
+    /**
+     * Get the current public opinion score for the last planned route
+     * Returns 70 (B-grade) if no data or no route
+     */
+    async getPublicOpinionScore() {
+        if (!this.lastRoute) return 70;
+
+        const opinions = this._opinionsCache || [];
+        if (opinions.length === 0) return 70;
+
+        let totalOpinionScore = 0;
+        let matchedCount = 0;
+
+        this.lastRoute.legs.forEach(leg => {
+            leg.steps.forEach(step => {
+                const stepPolyline = new google.maps.Polyline({ path: step.path });
+                const matched = opinions.filter(entry => {
+                    if (!entry.steps || entry.steps.length === 0) return false;
+                    return entry.steps.some(savedStep => {
+                        const savedLatLng = new google.maps.LatLng(savedStep.lat, savedStep.lng);
+                        return google.maps.geometry.poly.isLocationOnEdge(savedLatLng, stepPolyline, 0.0005);
+                    });
+                });
+
+                if (matched.length > 0) {
+                    let stepAvg = 0;
+                    matched.forEach(op => {
+                        stepAvg += ((op.safetyScore || 3) + (op.smoothnessScore || 3)) / 2;
+                    });
+                    totalOpinionScore += stepAvg / matched.length;
+                    matchedCount++;
+                }
+            });
+        });
+
+        return this._computePublicOpinionBarScore(totalOpinionScore, matchedCount, opinions.length);
     }
 }

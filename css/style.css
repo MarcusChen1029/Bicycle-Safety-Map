@@ -562,3 +562,217 @@ textarea#report-desc:focus {
     transform: translateY(-1px);
     box-shadow: 0 4px 6px rgba(40, 167, 69, 0.3);
 }
+
+/* ================================================
+   騎乘回饋 Modal (Feedback Modal)
+   ================================================ */
+
+.feedback-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: feedbackFadeIn 0.3s ease;
+    backdrop-filter: blur(3px);
+}
+
+@keyframes feedbackFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes feedbackSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.feedback-modal {
+    background: white;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 360px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+    animation: feedbackSlideUp 0.35s ease;
+}
+
+.feedback-modal-header {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    padding: 24px 20px 18px;
+    text-align: center;
+}
+
+.feedback-modal-icon {
+    font-size: 36px;
+    display: block;
+    margin-bottom: 6px;
+}
+
+.feedback-modal-header h3 {
+    margin: 0 0 4px 0;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.feedback-modal-subtitle {
+    margin: 0;
+    font-size: 13px;
+    opacity: 0.9;
+}
+
+.feedback-modal-body {
+    padding: 20px 24px 10px;
+}
+
+.feedback-rating-group {
+    margin-bottom: 18px;
+    text-align: center;
+}
+
+.feedback-rating-label {
+    display: block !important;
+    font-size: 14px !important;
+    font-weight: 600;
+    color: #444;
+    margin: 0 0 8px 0 !important;
+    padding: 0 !important;
+    cursor: default !important;
+}
+
+.feedback-stars {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.feedback-star {
+    font-size: 32px;
+    color: #d4d4d4;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    line-height: 1;
+}
+
+.feedback-star:hover {
+    transform: scale(1.2);
+    color: #ffc107;
+}
+
+.feedback-star.active {
+    color: #ffc107;
+    text-shadow: 0 0 8px rgba(255, 193, 7, 0.4);
+}
+
+.feedback-star.hover-preview {
+    color: #ffe066;
+}
+
+.feedback-score-text {
+    display: block;
+    font-size: 12px;
+    color: #999;
+    margin-top: 4px;
+    transition: color 0.2s;
+}
+
+.feedback-score-text.scored {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.feedback-modal-actions {
+    display: flex;
+    gap: 10px;
+    padding: 10px 24px 24px;
+}
+
+.feedback-btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    letter-spacing: 0.5px;
+}
+
+.feedback-btn-submit {
+    background-color: #28a745;
+    color: white;
+    box-shadow: 0 3px 8px rgba(40, 167, 69, 0.3);
+}
+
+.feedback-btn-submit:hover {
+    background-color: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 5px 12px rgba(40, 167, 69, 0.4);
+}
+
+.feedback-btn-submit:active {
+    transform: translateY(0);
+}
+
+.feedback-btn-skip {
+    background-color: #f0f0f0;
+    color: #666;
+    border: 1px solid #ddd;
+}
+
+.feedback-btn-skip:hover {
+    background-color: #e2e6ea;
+    color: #333;
+}
+
+/* Toast notification for feedback success */
+.feedback-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #28a745;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+    z-index: 10000;
+    animation: toastSlideUp 0.4s ease, toastFadeOut 0.4s ease 2.2s forwards;
+    white-space: nowrap;
+}
+
+@keyframes toastSlideUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+@keyframes toastFadeOut {
+    to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-10px);
+    }
+}
