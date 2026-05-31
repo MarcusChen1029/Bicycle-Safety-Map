@@ -11,6 +11,10 @@ class BikeMapApp {
     this.userMarker = null;        // 使用者位置標記
     this.userAccuracyCircle = null; // GPS 精度圈
     this.currentPosition = null;   // 最新的位置資料 { lat, lng, speed, heading, accuracy }
+    
+    // In-App Navigation State
+    this.isNavigating = false;
+    this.currentNavStepIndex = 0;
   }
 
   /**
@@ -75,6 +79,174 @@ class BikeMapApp {
         this.routePlanner.clearRoute();
       });
     }
+
+    // Start Navigation Event
+    const startNavBtn = document.getElementById('start-navigation-btn');
+    if (startNavBtn) {
+      startNavBtn.addEventListener('click', () => {
+        if (this.routePlanner && this.routePlanner.lastRoute) {
+          // 啟動 App 內建導航模式
+          this.isNavigating = true;
+          this.currentNavStepIndex = 0;
+          this._minDistanceToTurn = null;
+          
+          document.body.classList.add('nav-mode-active');
+          document.getElementById('nav-banner').style.display = 'flex';
+          
+          if (this.currentPosition && this.map) {
+            this.map.setCenter(this.currentPosition);
+            this.map.setZoom(18);
+          }
+          
+          this._updateNavBanner();
+        }
+      });
+    }
+
+    const endNavBtn = document.getElementById('end-navigation-btn');
+    if (endNavBtn) {
+      endNavBtn.addEventListener('click', () => {
+        this.isNavigating = false;
+        document.body.classList.remove('nav-mode-active');
+        document.getElementById('nav-banner').style.display = 'none';
+        
+        // 將地圖視角拉回可看見整條路線
+        if (this.routePlanner && this.routePlanner.lastRoute && this.map) {
+           this.map.fitBounds(this.routePlanner.lastRoute.bounds);
+        }
+      });
+    }
+
+    // Spoofer Toggle
+    const toggleSpooferBtn = document.getElementById('toggle-spoofer-btn');
+    const virtualJoystick = document.getElementById('virtual-joystick');
+    
+    // WASD Smooth Movement State
+    this.keysPressed = { w: false, a: false, s: false, d: false };
+    this.isSpooferActive = false;
+    
+    const smoothSpoofSpeed = 0.00003;
+    const smoothSpoofLoop = () => {
+      if (!this.isSpooferActive) return;
+      
+      let dLat = 0;
+      let dLng = 0;
+      if (this.keysPressed.w) dLat += smoothSpoofSpeed;
+      if (this.keysPressed.s) dLat -= smoothSpoofSpeed;
+      if (this.keysPressed.a) dLng -= smoothSpoofSpeed;
+      if (this.keysPressed.d) dLng += smoothSpoofSpeed;
+
+      if (dLat !== 0 || dLng !== 0) {
+        if (!this.currentPosition) {
+          this.currentPosition = { lat: 25.0478, lng: 121.5170, accuracy: 10, heading: 0, speed: 0 };
+        }
+        // Calculate heading
+        const heading = Math.atan2(dLng, dLat) * 180 / Math.PI;
+        this.handlePositionUpdate({
+          coords: {
+            latitude: this.currentPosition.lat + dLat,
+            longitude: this.currentPosition.lng + dLng,
+            accuracy: 10,
+            heading: heading >= 0 ? heading : heading + 360,
+            speed: 15
+          }
+        });
+      }
+      requestAnimationFrame(smoothSpoofLoop);
+    };
+
+    if (toggleSpooferBtn && virtualJoystick) {
+      toggleSpooferBtn.addEventListener('click', () => {
+        if (virtualJoystick.style.display === 'none') {
+          virtualJoystick.style.display = 'flex';
+          toggleSpooferBtn.style.background = '#ffeeba';
+          this.isSpooferActive = true;
+          if (this.watchId !== null) {
+            navigator.geolocation.clearWatch(this.watchId);
+            this.watchId = null;
+          }
+          // Start WASD animation loop
+          requestAnimationFrame(smoothSpoofLoop);
+        } else {
+          virtualJoystick.style.display = 'none';
+          toggleSpooferBtn.style.background = '#fff3cd';
+          this.isSpooferActive = false;
+          // Reset keys
+          this.keysPressed = { w: false, a: false, s: false, d: false };
+          this.startLocationTracking();
+        }
+      });
+    }
+
+    // Keyboard Listeners
+    window.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase();
+      if (this.isSpooferActive && this.keysPressed.hasOwnProperty(key)) {
+        this.keysPressed[key] = true;
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      const key = e.key.toLowerCase();
+      if (this.isSpooferActive && this.keysPressed.hasOwnProperty(key)) {
+        this.keysPressed[key] = false;
+      }
+    });
+
+    const moveStep = 0.0001; // 約 11 公尺
+    const moveFake = (dLat, dLng) => {
+      if (!this.currentPosition) {
+        this.currentPosition = { lat: 25.0478, lng: 121.5170, accuracy: 10, heading: 0, speed: 0 };
+      }
+      this.handlePositionUpdate({
+        coords: {
+          latitude: this.currentPosition.lat + dLat,
+          longitude: this.currentPosition.lng + dLng,
+          accuracy: 10,
+          heading: 0,
+          speed: 5
+        }
+      });
+    };
+
+    // Keep UI buttons working smoothly too
+    let holdInterval;
+    const startHold = (dLat, dLng) => {
+      moveFake(dLat, dLng);
+      holdInterval = setInterval(() => moveFake(dLat, dLng), 50);
+    };
+    const stopHold = () => clearInterval(holdInterval);
+
+    ['up', 'down', 'left', 'right'].forEach(dir => {
+      const btn = document.getElementById(`joy-${dir}`);
+      if (!btn) return;
+      const offsets = {
+        'up': [smoothSpoofSpeed*2, 0], 'down': [-smoothSpoofSpeed*2, 0],
+        'left': [0, -smoothSpoofSpeed*2], 'right': [0, smoothSpoofSpeed*2]
+      };
+      btn.addEventListener('mousedown', () => startHold(offsets[dir][0], offsets[dir][1]));
+      btn.addEventListener('mouseup', stopHold);
+      btn.addEventListener('mouseleave', stopHold);
+      btn.addEventListener('touchstart', (e) => { e.preventDefault(); startHold(offsets[dir][0], offsets[dir][1]); });
+      btn.addEventListener('touchend', (e) => { e.preventDefault(); stopHold(); });
+    });
+    
+    document.getElementById('joy-teleport')?.addEventListener('click', () => {
+      if (this.routePlanner && this.routePlanner.lastRoute) {
+        const startLoc = this.routePlanner.lastRoute.legs[0].start_location;
+        this.handlePositionUpdate({
+          coords: {
+            latitude: startLoc.lat(),
+            longitude: startLoc.lng(),
+            accuracy: 10,
+            heading: 0,
+            speed: 0
+          }
+        });
+      } else {
+        alert('請先規劃路線！');
+      }
+    });
 
     // Swap Origin and Destination
     const swapBtn = document.getElementById('swap-route-btn');
@@ -216,25 +388,7 @@ class BikeMapApp {
 
     // 位置更新的共用 callback
     const onPositionUpdate = (position) => {
-      const latitude = position.coords.latitude;    // 緯度
-      const longitude = position.coords.longitude;  // 經度
-      const speed = position.coords.speed;           // 速度 (公尺/秒)
-      const heading = position.coords.heading;       // 移動方向 (角度)
-      const accuracy = position.coords.accuracy;     // 精度 (公尺)
-
-      // 儲存最新位置
-      this.currentPosition = {
-        lat: latitude,
-        lng: longitude,
-        speed: speed,
-        heading: heading,
-        accuracy: accuracy
-      };
-
-      console.log(`📍 目前位置：${latitude.toFixed(5)}, ${longitude.toFixed(5)}，精度：${accuracy?.toFixed(0)}m，方向：${heading}，速度：${speed} m/s`);
-
-      // 更新地圖上的使用者位置標記
-      this._updateUserMarker(latitude, longitude, accuracy);
+      this.handlePositionUpdate(position);
     };
 
     // 錯誤處理的共用 callback
@@ -399,6 +553,95 @@ class BikeMapApp {
 
   async handleRoutePlanning() {
 
+  }
+
+  handlePositionUpdate(position) {
+    const latitude = position.coords.latitude;    // 緯度
+    const longitude = position.coords.longitude;  // 經度
+    const speed = position.coords.speed;           // 速度 (公尺/秒)
+    const heading = position.coords.heading;       // 移動方向 (角度)
+    const accuracy = position.coords.accuracy;     // 精度 (公尺)
+
+    // 儲存最新位置
+    this.currentPosition = {
+      lat: latitude,
+      lng: longitude,
+      speed: speed,
+      heading: heading,
+      accuracy: accuracy
+    };
+
+    console.log(`📍 目前位置：${latitude.toFixed(5)}, ${longitude.toFixed(5)}，精度：${accuracy?.toFixed(0)}m，方向：${heading}，速度：${speed} m/s`);
+
+    // 更新地圖上的使用者位置標記
+    this._updateUserMarker(latitude, longitude, accuracy);
+
+    // 如果處於導航模式，持續更新視角與導航提示
+    if (this.isNavigating) {
+      this.map.setCenter({ lat: latitude, lng: longitude });
+      this._checkNavProgress(this.currentPosition);
+    }
+  }
+
+  // ================================================================
+  // 導航邏輯 (In-App Navigation)
+  // ================================================================
+
+  _updateNavBanner() {
+    if (!this.routePlanner || !this.routePlanner.lastRoute) return;
+    
+    const steps = this.routePlanner.lastRoute.legs[0].steps;
+    if (this.currentNavStepIndex < steps.length) {
+      const step = steps[this.currentNavStepIndex];
+      const instructionEl = document.getElementById('nav-instruction');
+      const distanceEl = document.getElementById('nav-distance');
+      
+      if (instructionEl) instructionEl.innerHTML = step.instructions;
+      if (distanceEl) distanceEl.textContent = step.distance.text;
+    } else {
+      const instructionEl = document.getElementById('nav-instruction');
+      if (instructionEl) instructionEl.innerHTML = '已到達目的地附近！';
+      const distanceEl = document.getElementById('nav-distance');
+      if (distanceEl) distanceEl.textContent = '0 m';
+    }
+  }
+
+  _checkNavProgress(position) {
+    if (!this.routePlanner || !this.routePlanner.lastRoute) return;
+    
+    const steps = this.routePlanner.lastRoute.legs[0].steps;
+    if (this.currentNavStepIndex >= steps.length) return;
+    
+    const currentStep = steps[this.currentNavStepIndex];
+    const endLoc = currentStep.end_location;
+    const currentLoc = new google.maps.LatLng(position.lat, position.lng);
+    
+    // 計算與目前路段終點的距離
+    const distanceToTurn = google.maps.geometry.spherical.computeDistanceBetween(currentLoc, endLoc);
+    
+    // 防呆機制：追蹤距離是否開始變大 (錯過轉彎點)
+    if (!this._minDistanceToTurn || this._lastNavStepIndex !== this.currentNavStepIndex) {
+      this._minDistanceToTurn = distanceToTurn;
+      this._lastNavStepIndex = this.currentNavStepIndex;
+    } else {
+      this._minDistanceToTurn = Math.min(this._minDistanceToTurn, distanceToTurn);
+    }
+    
+    // 如果距離小於 40 公尺，或者距離開始變大超過 15 公尺 (代表已經經過終點)，切換到下一步驟
+    if (distanceToTurn < 40 || (distanceToTurn > this._minDistanceToTurn + 15 && this._minDistanceToTurn < 80)) {
+      this.currentNavStepIndex++;
+      this._updateNavBanner();
+    } else {
+      // 即時更新剩餘距離顯示
+      const distanceEl = document.getElementById('nav-distance');
+      if (distanceEl) {
+        if (distanceToTurn < 1000) {
+          distanceEl.textContent = Math.round(distanceToTurn) + ' m';
+        } else {
+          distanceEl.textContent = (distanceToTurn / 1000).toFixed(1) + ' km';
+        }
+      }
+    }
   }
 }
 

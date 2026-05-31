@@ -776,3 +776,121 @@ textarea#report-desc:focus {
         transform: translateX(-50%) translateY(-10px);
     }
 }
+
+/* ================================================
+   導航模式 UI (Navigation UI)
+   ================================================ */
+
+.nav-banner {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 400px;
+    background: #28a745;
+    color: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+}
+
+.nav-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex: 1;
+}
+
+.nav-icon {
+    font-size: 32px;
+}
+
+.nav-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-distance {
+    font-size: 24px;
+    font-weight: bold;
+    line-height: 1.2;
+}
+
+.nav-instruction {
+    font-size: 16px;
+    opacity: 0.9;
+}
+
+.end-navigation-btn {
+    background: white;
+    color: #dc3545;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.end-navigation-btn:hover {
+    background: #f8f9fa;
+}
+
+/* Hide elements when in navigation mode */
+body.nav-mode-active .search-bar,
+body.nav-mode-active .nav-bar,
+body.nav-mode-active .details,
+body.nav-mode-active #map-controls-container,
+body.nav-mode-active #start-navigation-btn {
+    display: none !important;
+}
+
+body.nav-mode-active .map {
+    height: 100vh !important;
+}
+
+/* Virtual Joystick */
+.virtual-joystick {
+    position: absolute;
+    bottom: 100px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 10px;
+    border-radius: 50%;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    gap: 5px;
+}
+
+.joy-row {
+    display: flex;
+    gap: 5px;
+}
+
+.joy-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: #f0f0f0;
+    font-size: 16px;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.joy-btn:active {
+    background: #e0e0e0;
+    transform: scale(0.95);
+}

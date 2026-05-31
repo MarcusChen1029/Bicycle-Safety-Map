@@ -377,6 +377,10 @@ class RoutePlanner {
             this.lastFinalResult = finalResult;
             console.log('📌 Last route stored for feedback');
 
+            // Show start navigation button
+            const navBtn = document.getElementById('start-navigation-btn');
+            if (navBtn) navBtn.style.display = 'flex';
+
         } catch (error) {
             console.error('❌ Direction request failed due to ' + error);
             alert('Could not find a route. Please check the addresses and try again.\nError: ' + error.message);
@@ -618,6 +622,9 @@ class RoutePlanner {
 
         document.getElementById('start-point').value = '';
         document.getElementById('end-point').value = '';
+
+        const navBtn = document.getElementById('start-navigation-btn');
+        if (navBtn) navBtn.style.display = 'none';
 
         console.log('🗑️ Route cleared');
     }

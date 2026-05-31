@@ -29,7 +29,11 @@
                     <span>🗺️</span> 路線規劃
                 </button>
                 <div
-                    style="position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; flex-direction: column; gap: 10px;">
+                    style="position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; flex-direction: column; gap: 10px;" id="map-controls-container">
+                    <button id="toggle-spoofer-btn" class="map-control-btn"
+                        style="padding: 8px 12px; border-radius: 8px; border: none; background: #fff3cd; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; font-weight: bold; transition: background 0.2s;">
+                        <span>🎮</span> 模擬器
+                    </button>
                     <button id="toggle-youbike-btn" class="map-control-btn"
                         style="padding: 8px 12px; border-radius: 8px; border: none; background: #e6f4ea; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; font-weight: bold; transition: background 0.2s;">
                         <span>🚲</span> YouBike層
@@ -39,7 +43,38 @@
                         <span>🛣️</span> 自行車道
                     </button>
                 </div>
+                
+                <!-- Virtual Joystick for Spoofing -->
+                <div id="virtual-joystick" class="virtual-joystick" style="display: none;">
+                    <div class="joy-row">
+                        <button class="joy-btn" id="joy-up">▲</button>
+                    </div>
+                    <div class="joy-row">
+                        <button class="joy-btn" id="joy-left">◀</button>
+                        <button class="joy-btn" id="joy-teleport" title="傳送到起點">📍</button>
+                        <button class="joy-btn" id="joy-right">▶</button>
+                    </div>
+                    <div class="joy-row">
+                        <button class="joy-btn" id="joy-down">▼</button>
+                    </div>
+                </div>
+                
+                <!-- Navigation Banner (Hidden by default) -->
+                <div id="nav-banner" class="nav-banner" style="display: none;">
+                    <div class="nav-banner-content">
+                        <div class="nav-icon" id="nav-icon">⬆️</div>
+                        <div class="nav-info">
+                            <div class="nav-distance" id="nav-distance">-- m</div>
+                            <div class="nav-instruction" id="nav-instruction">準備導航中...</div>
+                        </div>
+                    </div>
+                    <button id="end-navigation-btn" class="end-navigation-btn">結束</button>
+                </div>
+                
                 <div id="map"></div>
+                <button id="start-navigation-btn" class="start-navigation-btn" style="display: none; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10; padding: 12px 24px; background-color: #4285f4; color: white; border: none; border-radius: 24px; font-size: 16px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3); cursor: pointer; align-items: center; gap: 8px;">
+                    <span style="font-size: 20px;">🧭</span> 開始導航
+                </button>
             </div>
 
             <div class="details">
