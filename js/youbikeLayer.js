@@ -125,6 +125,43 @@ class YoubikeLayer {
         }
     }
 
+    /**
+     * Find the nearest station to a point, optionally filtered by real-time availability.
+     * @param {google.maps.LatLng} latLng - Reference point.
+     * @param {'rent'|'return'|'any'} type - 'rent' requires bikes available,
+     *        'return' requires open docks, 'any' ignores availability.
+     * @returns {{station:Object, lat:number, lng:number, distance:number}|null}
+     */
+    findNearestStation(latLng, type = 'any') {
+        if (!this.allStations || this.allStations.length === 0 || !latLng) {
+            return null;
+        }
+
+        let best = null;
+        let bestDistance = Infinity;
+
+        this.allStations.forEach(station => {
+            const lat = parseFloat(station.latitude);
+            const lng = parseFloat(station.longitude);
+            if (isNaN(lat) || isNaN(lng)) return;
+
+            // Availability filter
+            if (type === 'rent' && !(station.available_rent_bikes > 0)) return;
+            if (type === 'return' && !(station.available_return_bikes > 0)) return;
+
+            const distance = google.maps.geometry.spherical.computeDistanceBetween(
+                latLng,
+                new google.maps.LatLng(lat, lng)
+            );
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = { station, lat, lng, distance };
+            }
+        });
+
+        return best;
+    }
+
     setRoutePath(pathArray) {
         this.routePath = pathArray;
         if (this.visible) {
