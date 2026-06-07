@@ -104,9 +104,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Report Issue Logic
     const submitReportBtn = document.getElementById('submit-report-btn');
     if (submitReportBtn) {
-        submitReportBtn.addEventListener('click', () => {
+        submitReportBtn.addEventListener('click', async () => {
             const reportType = document.getElementById('report-type').value;
             const reportDesc = document.getElementById('report-desc').value;
+            const reportLocation = document.getElementById('report-location').value;
 
             if (!reportType) {
                 alert('請選擇問題類型！');
@@ -117,16 +118,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            alert('回報已成功送出！感謝您協助改善騎乘環境。');
+            submitReportBtn.disabled = true;
+            submitReportBtn.textContent = '送出中...';
 
-            // Clear form
-            document.getElementById('report-type').value = '';
-            document.getElementById('report-location').value = '';
-            document.getElementById('report-desc').value = '';
-            document.getElementById('report-photo').value = '';
+            // Convert the location text to coordinates so the report can be shown on the map.
+            // Aborts the submit if it cannot be resolved, so every stored report is mappable.
+            let coords;
+            try {
+                coords = await resolveReportLocation(reportLocation);
+            } catch (geoError) {
+                console.warn('Location could not be resolved:', geoError);
+                alert('無法定位回報地點，請點擊 📍 取得目前位置，或輸入正確的地址。');
+                submitReportBtn.disabled = false;
+                submitReportBtn.textContent = '送出回報';
+                return;
+            }
 
-            // Switch back to Map tab by clicking the first nav item
-            if (navItems[0]) navItems[0].click();
+            try {
+                await db.collection('reports').add({
+                    type: reportType,
+                    description: reportDesc,
+                    location: reportLocation,           // original text, kept for reference
+                    address: coords.address || '',      // formatted address when geocoded
+                    lat: coords.lat,
+                    lng: coords.lng,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    status: 'pending'
+                });
+
+                alert('回報已成功送出！感謝您協助改善騎乘環境。');
+
+                // Clear form
+                document.getElementById('report-type').value = '';
+                document.getElementById('report-location').value = '';
+                document.getElementById('report-desc').value = '';
+                document.getElementById('report-photo').value = '';
+
+                // Switch back to Map tab by clicking the first nav item
+                if (navItems[0]) navItems[0].click();
+            } catch (error) {
+                console.error("Error submitting report:", error);
+                alert('回報送出失敗，請稍後再試。');
+            } finally {
+                submitReportBtn.disabled = false;
+                submitReportBtn.textContent = '送出回報';
+            }
         });
     }
 
@@ -140,6 +176,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
 });
 
+
+/**
+ * Resolve a report-location text into coordinates for map display.
+ * - "lat, lng" text (e.g. from the 📍 GPS button) is parsed directly.
+ * - Any other text is geocoded via Google Maps.
+ * @param {string} text - The location field value.
+ * @returns {Promise<{lat:number, lng:number, address?:string}>}
+ * @throws {Error} if coordinates cannot be resolved.
+ */
+function resolveReportLocation(text) {
+    const raw = (text || '').trim();
+    if (!raw) {
+        throw new Error('地點為空');
+    }
+
+    // "25.0478, 121.5170" → parse directly, no API call.
+    const coordMatch = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (coordMatch) {
+        const lat = parseFloat(coordMatch[1]);
+        const lng = parseFloat(coordMatch[2]);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            return Promise.resolve({ lat, lng });
+        }
+    }
+
+    // Otherwise geocode the address.
+    if (typeof google === 'undefined' || !google.maps || !google.maps.Geocoder) {
+        throw new Error('地圖尚未載入，無法解析地址');
+    }
+    const geocoder = new google.maps.Geocoder();
+    return new Promise((resolve, reject) => {
+        geocoder.geocode({ address: raw }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+                const loc = results[0].geometry.location;
+                resolve({
+                    lat: loc.lat(),
+                    lng: loc.lng(),
+                    address: results[0].formatted_address
+                });
+            } else {
+                reject(new Error('無法解析此地址 (' + status + ')'));
+            }
+        });
+    });
+}
 
 // Initialize and add the map
 function initMap() {
