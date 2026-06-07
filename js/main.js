@@ -280,6 +280,23 @@ class BikeMapApp {
       });
     }
 
+    // YouBike route mode toggle (station-to-station routing)
+    const youbikeRouteBtn = document.getElementById('toggle-youbike-route-btn');
+    if (youbikeRouteBtn) {
+      youbikeRouteBtn.addEventListener('click', () => {
+        if (!this.routePlanner) return;
+        this.routePlanner.youbikeRouteMode = !this.routePlanner.youbikeRouteMode;
+        const active = this.routePlanner.youbikeRouteMode;
+        youbikeRouteBtn.style.background = active ? '#ffeeba' : '#e6f4ea';
+        // Show the YouBike layer when the mode is on so stations are visible
+        if (active && this.youbikeLayer && !this.youbikeLayer.visible) {
+          this.youbikeLayer.toggle();
+          const layerBtn = document.getElementById('toggle-youbike-btn');
+          if (layerBtn) layerBtn.style.background = '#e6f4ea';
+        }
+      });
+    }
+
     // Bike Lane toggle
     const bikeLaneToggleBtn = document.getElementById('toggle-bikelane-btn');
     if (bikeLaneToggleBtn && this.bikeLaneLayer) {

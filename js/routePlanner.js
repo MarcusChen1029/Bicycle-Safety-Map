@@ -23,6 +23,9 @@ class RoutePlanner {
         this.lastRoute = null;
         this.lastFinalResult = null;
 
+        // YouBike mode: when on, routes are snapped station-to-station (toggled from the map UI)
+        this.youbikeRouteMode = false;
+
         // Pre-load Firebase opinions cache
         this._opinionsCache = null;
         this._loadOpinionsCache();
@@ -236,6 +239,16 @@ class RoutePlanner {
 
         console.log(`🗺️ Planning route from "${origin}" to "${destination}"...`);
 
+        // YouBike mode: snap origin/destination to the nearest usable stations.
+        if (this.youbikeRouteMode) {
+            const snapped = await this._snapToYoubikeStations(origin, destination);
+            if (snapped) {
+                origin = snapped.origin;
+                destination = snapped.destination;
+            }
+            // If snapping failed it already alerted; fall through with the original points.
+        }
+
         const request = {
             origin: origin,
             destination: destination,
@@ -385,6 +398,73 @@ class RoutePlanner {
             console.error('❌ Direction request failed due to ' + error);
             alert('Could not find a route. Please check the addresses and try again.\nError: ' + error.message);
         }
+    }
+
+    /**
+     * YouBike mode: resolve origin/destination to coordinates, then replace each with the
+     * nearest usable station (start needs bikes, end needs open docks).
+     * @returns {Promise<{origin:string, destination:string}|null>} station "lat,lng" strings,
+     *          or null if it couldn't snap (an alert was shown; caller uses the original points).
+     */
+    async _snapToYoubikeStations(origin, destination) {
+        if (!this.youbikeLayer || !this.youbikeLayer.allStations || this.youbikeLayer.allStations.length === 0) {
+            alert('YouBike 站點資料尚未載入，將使用一般路線。');
+            return null;
+        }
+
+        let originLatLng, destLatLng;
+        try {
+            [originLatLng, destLatLng] = await Promise.all([
+                this._resolveToLatLng(origin),
+                this._resolveToLatLng(destination)
+            ]);
+        } catch (e) {
+            console.warn('YouBike mode: could not resolve start/end to coordinates', e);
+            alert('無法定位起點或終點，將使用一般路線。');
+            return null;
+        }
+
+        const startStation = this.youbikeLayer.findNearestStation(originLatLng, 'rent');
+        const endStation = this.youbikeLayer.findNearestStation(destLatLng, 'return');
+
+        if (!startStation || !endStation) {
+            alert('附近找不到可借/可還的 YouBike 站點，將使用一般路線。');
+            return null;
+        }
+
+        const startName = (startStation.station.sna || '').replace('YouBike2.0_', '');
+        const endName = (endStation.station.sna || '').replace('YouBike2.0_', '');
+        console.log(`🚲 YouBike mode: ${startName} (可借 ${startStation.station.available_rent_bikes}) → ${endName} (可還 ${endStation.station.available_return_bikes})`);
+
+        return {
+            origin: `${startStation.lat},${startStation.lng}`,
+            destination: `${endStation.lat},${endStation.lng}`
+        };
+    }
+
+    /**
+     * Resolve a "lat, lng" string or an address into a google.maps.LatLng.
+     * @returns {Promise<google.maps.LatLng>}
+     */
+    _resolveToLatLng(text) {
+        const raw = (text || '').trim();
+        const coordMatch = raw.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+        if (coordMatch) {
+            const lat = parseFloat(coordMatch[1]);
+            const lng = parseFloat(coordMatch[2]);
+            if (!isNaN(lat) && !isNaN(lng)) {
+                return Promise.resolve(new google.maps.LatLng(lat, lng));
+            }
+        }
+        return new Promise((resolve, reject) => {
+            this.geocoder.geocode({ address: raw }, (results, status) => {
+                if (status === 'OK' && results[0]) {
+                    resolve(results[0].geometry.location);
+                } else {
+                    reject(new Error('Geocode failed: ' + status));
+                }
+            });
+        });
     }
 
     /**

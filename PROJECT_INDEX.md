@@ -70,6 +70,8 @@ Depends on global `db` + Google Maps. Instantiated in `main.js init()`.
 Fetches live YouBike JSON. Renders markers only near map center (1 km) or, when a route is
 set via `setRoutePath()`, the nearest 3 stations within 300 m of start & end. Debounced on
 map `idle`. Marker color by availability. `toggle()`, InfoWindow with rent/return counts.
+`findNearestStation(latLng, type)` (`'rent'`/`'return'`/`'any'`) → nearest station, optionally
+filtered by availability; used by RoutePlanner's YouBike mode.
 
 ### `js/routePlanner.js` (734 lines) — `RoutePlanner` (route brain)
 - Uses Google DirectionsService (BICYCLING, alternatives). `planRoute(origin, dest)`.
@@ -83,6 +85,7 @@ map `idle`. Marker color by availability. `toggle()`, InfoWindow with rent/retur
 - `clearRoute()` → triggers `showFeedbackModal()` if a route existed.
 - `saveFeedbackToFirebase(safety, smoothness)` → builds step/overview points → `feedbackDB.saveFeedback` → reloads cache. Stores `lastRoute` for feedback/nav.
 - `_loadOpinionsCache()` preloads `feedbackDB.getAllFeedback()`.
+- **YouBike mode** (`youbikeRouteMode`, toggled by the map's 🚲 單車模式 button): when on, `planRoute` calls `_snapToYoubikeStations()` → `_resolveToLatLng()` (parse `"lat,lng"` or geocode) → `youbikeLayer.findNearestStation` for start (rentable) & end (open docks), and routes station→station. Falls back to a normal route + alert if data missing / no station.
 
 ### `js/script.js` (438 lines) — UI: stats bars, tabs, report form, feedback modal
 - `updateStats()` / `updateLevel()` — progress bars + A–E grade in `.details` panel.
@@ -94,7 +97,7 @@ map `idle`. Marker color by availability. `toggle()`, InfoWindow with rent/retur
 ---
 
 ## Frontend shell
-- **`index.html`** (324 lines) — single page. Loads Firebase compat SDK (app + firestore) in `<head>`; body has search bar, 3 view-panes (Map / Route / Report), map controls (spoofer/YouBike/bike-lane toggles), virtual joystick, nav banner, start-nav button, feedback modal, bottom nav-bar. Script load order at bottom: firebaseConfig → config → script → main → map_init → bikeLane → accidentLayer → youbikeLayer → reportLayer → routePlanner, then Google Maps (async, callback `initMapApp`).
+- **`index.html`** (324 lines) — single page. Loads Firebase compat SDK (app + firestore) in `<head>`; body has search bar, 3 view-panes (Map / Route / Report), map controls (spoofer/YouBike-layer/單車模式/bike-lane toggles), virtual joystick, nav banner, start-nav button, feedback modal, bottom nav-bar. Script load order at bottom: firebaseConfig → config → script → main → map_init → bikeLane → accidentLayer → youbikeLayer → reportLayer → routePlanner, then Google Maps (async, callback `initMapApp`).
 - **`css/style.css`** (895 lines) — all styling (container, panes, details panel, stats bars, joystick, nav banner, feedback modal/toast, favorites).
 
 ## Data files — `data/`
