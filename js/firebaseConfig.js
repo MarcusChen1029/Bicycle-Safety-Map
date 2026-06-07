@@ -3,13 +3,13 @@
  * Provides Firestore database for bike_map_opinions collection
  */
 const firebaseConfig = {
-    apiKey: "AIzaSyARsnFTWt2MSbQc2mL8_5iIXqIoPcg2f70",
-    authDomain: "mapcomment-8f128.firebaseapp.com",
-    projectId: "mapcomment-8f128",
-    storageBucket: "mapcomment-8f128.firebasestorage.app",
-    messagingSenderId: "1012223256937",
-    appId: "1:1012223256937:web:7cf6c868297622b4fe35f8",
-    measurementId: "G-ZXNV4VL9D2"
+    apiKey: "AIzaSyCe3E6azBZ2NGXTnROpt1gsUKUtKuq6L1Q",
+    authDomain: "bycyclesafetymap.firebaseapp.com",
+    projectId: "bycyclesafetymap",
+    storageBucket: "bycyclesafetymap.firebasestorage.app",
+    messagingSenderId: "500061164582",
+    appId: "1:500061164582:web:bdbe1e94220c0b0a5382e7",
+    measurementId: "G-YVNK7BL60W"
 };
 
 // Initialize Firebase

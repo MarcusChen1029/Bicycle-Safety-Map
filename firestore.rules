@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// Bicycle Safety Map - Firestore security rules
+// NOTE: These allow unauthenticated read/write because the app has no login.
+// This matches the behavior of the previous project. Fine for a class/demo,
+// but anyone can read or write these collections. Lock down before production.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Crowd-sourced ride feedback (safety / smoothness scores)
+    match /bike_map_opinions/{docId} {
+      allow read, write: if true;
+    }
+
+    // User-submitted road issue reports
+    match /reports/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

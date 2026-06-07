@@ -42,6 +42,10 @@ class BikeMapApp {
       // Not awaiting here to not block the rest of initialization
       this.youbikeLayer.loadData();
 
+      // Report warnings layer - live ⚠️ markers from the `reports` Firestore collection
+      this.reportLayer = new ReportLayer(this.map, this.sharedInfoWindow);
+      this.reportLayer.listen();
+
       // Initialize Route Planner
       this.routePlanner = new RoutePlanner(this.map, this.accidentLayer, this.youbikeLayer, this.bikeLaneLayer);
 
@@ -592,12 +596,15 @@ class BikeMapApp {
     
     const steps = this.routePlanner.lastRoute.legs[0].steps;
     if (this.currentNavStepIndex < steps.length) {
-      const step = steps[this.currentNavStepIndex];
       const instructionEl = document.getElementById('nav-instruction');
-      const distanceEl = document.getElementById('nav-distance');
       
-      if (instructionEl) instructionEl.innerHTML = step.instructions;
-      if (distanceEl) distanceEl.textContent = step.distance.text;
+      // 重大修正：當我們行駛在 steps[i] 時，需要預告的是「即將到來的下一個轉彎」
+      // 而這個轉彎動作記載在 steps[i+1].instructions 中。
+      if (this.currentNavStepIndex + 1 < steps.length) {
+        if (instructionEl) instructionEl.innerHTML = steps[this.currentNavStepIndex + 1].instructions;
+      } else {
+        if (instructionEl) instructionEl.innerHTML = '即將抵達目的地';
+      }
     } else {
       const instructionEl = document.getElementById('nav-instruction');
       if (instructionEl) instructionEl.innerHTML = '已到達目的地附近！';
@@ -606,17 +613,70 @@ class BikeMapApp {
     }
   }
 
-  _checkNavProgress(position) {
-    if (!this.routePlanner || !this.routePlanner.lastRoute) return;
+  _checkRouteDeviation(currentLoc) {
+    if (!this.routePlanner || !this.routePlanner.lastRoute) return false;
+    const path = this.routePlanner.lastRoute.overview_path;
+    let minDistance = Infinity;
+    // 計算距離最近的路線點
+    for (let i = 0; i < path.length; i++) {
+        const dist = google.maps.geometry.spherical.computeDistanceBetween(currentLoc, path[i]);
+        if (dist < minDistance) minDistance = dist;
+    }
+    // 容忍值 300 公尺
+    return minDistance > 300;
+  }
+
+  async _handleReroute(currentLoc) {
+    if (this.isRerouting || !this.routePlanner || !this.routePlanner.lastRoute) return;
+    this.isRerouting = true;
     
+    const instructionEl = document.getElementById('nav-instruction');
+    const distanceEl = document.getElementById('nav-distance');
+    if (instructionEl) instructionEl.innerHTML = '<span style="color: #ffeb3b">偏離路線，重新規劃中...</span>';
+    if (distanceEl) distanceEl.textContent = '...';
+    
+    const legs = this.routePlanner.lastRoute.legs;
+    const destination = legs[legs.length - 1].end_location;
+    
+    const originStr = `${currentLoc.lat()},${currentLoc.lng()}`;
+    const destStr = `${destination.lat()},${destination.lng()}`;
+    
+    try {
+        await this.routePlanner.planRoute(originStr, destStr);
+        this.currentNavStepIndex = 0;
+        this._minDistanceToTurn = null;
+        this._updateNavBanner();
+    } catch (e) {
+        console.error('重新規劃失敗:', e);
+    } finally {
+        this.isRerouting = false;
+    }
+  }
+
+  _checkNavProgress(position) {
+    if (!this.routePlanner || !this.routePlanner.lastRoute || this.isRerouting) return;
+    
+    const currentLoc = new google.maps.LatLng(position.lat, position.lng);
+    
+    // 檢查是否偏離路線
+    if (this._checkRouteDeviation(currentLoc)) {
+        this._handleReroute(currentLoc);
+        return;
+    }
+
     const steps = this.routePlanner.lastRoute.legs[0].steps;
-    if (this.currentNavStepIndex >= steps.length) return;
+    if (this.currentNavStepIndex >= steps.length) {
+        const instructionEl = document.getElementById('nav-instruction');
+        const distanceEl = document.getElementById('nav-distance');
+        if (instructionEl) instructionEl.innerHTML = '已到達目的地附近！';
+        if (distanceEl) distanceEl.textContent = '0 m';
+        return;
+    }
     
     const currentStep = steps[this.currentNavStepIndex];
     const endLoc = currentStep.end_location;
-    const currentLoc = new google.maps.LatLng(position.lat, position.lng);
     
-    // 計算與目前路段終點的距離
+    // 計算與目前路段終點 (即下一個轉彎處) 的距離
     const distanceToTurn = google.maps.geometry.spherical.computeDistanceBetween(currentLoc, endLoc);
     
     // 防呆機制：追蹤距離是否開始變大 (錯過轉彎點)
@@ -627,18 +687,27 @@ class BikeMapApp {
       this._minDistanceToTurn = Math.min(this._minDistanceToTurn, distanceToTurn);
     }
     
-    // 如果距離小於 40 公尺，或者距離開始變大超過 15 公尺 (代表已經經過終點)，切換到下一步驟
-    if (distanceToTurn < 40 || (distanceToTurn > this._minDistanceToTurn + 15 && this._minDistanceToTurn < 80)) {
+    // 判斷是否已經完成當前路段 (真正進入路口或剛經過路口)
+    let advanced = false;
+    if (distanceToTurn < 15 || (distanceToTurn > this._minDistanceToTurn + 15 && this._minDistanceToTurn < 60)) {
       this.currentNavStepIndex++;
+      advanced = true;
       this._updateNavBanner();
-    } else {
-      // 即時更新剩餘距離顯示
+    }
+    
+    // 無論是否剛切換，都即時更新「目前這一步驟」的剩餘距離
+    if (this.currentNavStepIndex < steps.length) {
+      const nextEndLoc = steps[this.currentNavStepIndex].end_location;
+      const nextDistanceToTurn = advanced 
+            ? google.maps.geometry.spherical.computeDistanceBetween(currentLoc, nextEndLoc) 
+            : distanceToTurn;
+            
       const distanceEl = document.getElementById('nav-distance');
       if (distanceEl) {
-        if (distanceToTurn < 1000) {
-          distanceEl.textContent = Math.round(distanceToTurn) + ' m';
+        if (nextDistanceToTurn < 1000) {
+          distanceEl.textContent = Math.round(nextDistanceToTurn) + ' m';
         } else {
-          distanceEl.textContent = (distanceToTurn / 1000).toFixed(1) + ' km';
+          distanceEl.textContent = (nextDistanceToTurn / 1000).toFixed(1) + ' km';
         }
       }
     }
