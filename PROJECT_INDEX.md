@@ -56,8 +56,9 @@ color by type (專用/共用/normal). `polylines[]` is read by the route scorer.
 
 ### `js/accidentLayer.js` (106 lines) — `AccidentLayer`
 Loads `data/accidents.json` (`[{lat,lng,severity}]`), `parseAccidentData()` keeps
-`{position, severity}`. `createHeatmap()` shows 死亡 (all) + every-10th 輕傷 for perf,
-weights 死亡=50/輕傷=10. `data[]` is read by the route scorer.
+`{position, severity}`. `createHeatmap()` plots 死亡 (fatalities) only — injuries (輕傷) are excluded so
+the heatmap stays sparse/meaningful and doesn't blanket the map when zoomed out.
+`data[]` (all severities) is read by the route scorer.
 
 ### `js/reportLayer.js` — `ReportLayer` (live road-issue warnings)
 Shows user-submitted reports as ⚠️ markers. `listen()` attaches a Firestore `onSnapshot`
