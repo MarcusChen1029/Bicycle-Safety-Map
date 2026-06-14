@@ -180,26 +180,6 @@ class RoutePlanner {
     }
 
     /**
-     * Open the route planner panel
-     */
-    open() {
-        const panel = document.querySelector('.route-planner');
-        if (panel) {
-            panel.classList.add('active');
-        }
-    }
-
-    /**
-     * Close the route planner panel
-     */
-    close() {
-        const panel = document.querySelector('.route-planner');
-        if (panel) {
-            panel.classList.remove('active');
-        }
-    }
-
-    /**
      * Set the destination input from a LatLng object (e.g. map click)
      * @param {google.maps.LatLng} latLng 
      */
