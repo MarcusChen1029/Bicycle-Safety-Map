@@ -357,10 +357,7 @@ class BikeMapApp {
     // 回報頁面的定位按鈕 → 使用真實 GPS
     const getLocBtn = document.getElementById('get-location-btn');
     if (getLocBtn) {
-      // 移除 script.js 中的 mock handler，改用真實 GPS
-      getLocBtn.replaceWith(getLocBtn.cloneNode(true));
-      const newGetLocBtn = document.getElementById('get-location-btn');
-      newGetLocBtn.addEventListener('click', () => {
+      getLocBtn.addEventListener('click', () => {
         if (this.currentPosition) {
           const reportLocInput = document.getElementById('report-location');
           if (reportLocInput) {

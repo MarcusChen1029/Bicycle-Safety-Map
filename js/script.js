@@ -166,14 +166,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // "Get Location" Button Logic (Mock feature)
-    const getLocBtn = document.getElementById('get-location-btn');
-    if (getLocBtn) {
-        getLocBtn.addEventListener('click', () => {
-            document.getElementById('report-location').value = '台北市羅斯福路四段1號 (自動定位)';
-        });
-    }
-
 });
 
 
@@ -219,17 +211,6 @@ function resolveReportLocation(text) {
                 reject(new Error('無法解析此地址 (' + status + ')'));
             }
         });
-    });
-}
-
-// Initialize and add the map
-function initMap() {
-    // The location of Taipei
-    const taipei = { lat: 25.0330, lng: 121.5654 };
-    // The map, centered at Taipei
-    const map = new google.maps.Map(document.getElementById("map"), {
-        zoom: 14,
-        center: taipei,
     });
 }
 
@@ -432,31 +413,22 @@ document.addEventListener('DOMContentLoaded', () => {
             submitBtn.textContent = '送出中...';
 
             try {
-                // Access the global app's routePlanner to save feedback
-                if (window.initMapApp && window.initMapApp._appInstance) {
-                    await window.initMapApp._appInstance.routePlanner.saveFeedbackToFirebase(
+                // Save via the live RoutePlanner (set on window by main.js) so the route's
+                // path is attached; fall back to a bare feedback doc if it's unavailable.
+                if (window._routePlannerRef) {
+                    await window._routePlannerRef.saveFeedbackToFirebase(
                         _feedbackRatings.safety,
                         _feedbackRatings.smoothness
                     );
                 } else {
-                    // Fallback: try to find routePlanner from global scope
-                    // The planRoute button handler in main.js creates the instance
-                    // We need a reference - store it on window when created
-                    if (window._routePlannerRef) {
-                        await window._routePlannerRef.saveFeedbackToFirebase(
-                            _feedbackRatings.safety,
-                            _feedbackRatings.smoothness
-                        );
-                    } else {
-                        console.warn('No routePlanner reference found, saving directly to Firebase');
-                        await feedbackDB.saveFeedback({
-                            safetyScore: _feedbackRatings.safety,
-                            smoothnessScore: _feedbackRatings.smoothness,
-                            averageScore: (_feedbackRatings.safety + _feedbackRatings.smoothness) / 2,
-                            steps: [],
-                            overviewPath: []
-                        });
-                    }
+                    console.warn('No routePlanner reference found, saving directly to Firebase');
+                    await feedbackDB.saveFeedback({
+                        safetyScore: _feedbackRatings.safety,
+                        smoothnessScore: _feedbackRatings.smoothness,
+                        averageScore: (_feedbackRatings.safety + _feedbackRatings.smoothness) / 2,
+                        steps: [],
+                        overviewPath: []
+                    });
                 }
 
                 hideFeedbackModal();
