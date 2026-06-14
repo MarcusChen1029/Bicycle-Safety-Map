@@ -27,7 +27,14 @@ class FeedbackDB {
         this.collection = db.collection('bike_map_opinions');
         this._cache = null;
         this._cacheTimestamp = 0;
-        this._cacheTTL = 30000; // 30 second cache
+        this._cacheTTL = 30000; // 30 second in-memory cache
+
+        // Persistent (localStorage) read-cache for cross-reload incremental sync.
+        // Returning visitors only fetch docs newer than _lastSync, instead of the
+        // whole collection every load. Keeps Firestore reads ~O(new docs) per visit.
+        this._persistKey = 'bike_map_opinions_cache';
+        this._lastSync = null;           // max createdAt (ISO string) seen so far
+        this._readLimit = 1000;          // hard cap on docs pulled in one query
     }
 
     /**
@@ -59,32 +66,89 @@ class FeedbackDB {
      * @returns {Promise<Array>} Array of feedback documents
      */
     async getAllFeedback() {
-        // Use cache if fresh
+        // 1. Fresh in-memory cache → return immediately.
         const now = Date.now();
         if (this._cache && (now - this._cacheTimestamp) < this._cacheTTL) {
             return this._cache;
         }
 
-        try {
-            const snapshot = await this.collection
-                .orderBy('createdAt', 'desc')
-                .get();
+        // 2. Seed from the persistent (localStorage) cache so we know how much we
+        //    already have and only need to fetch what's newer.
+        const persisted = this._loadPersistedCache();
+        const byId = new Map(persisted.data.map(entry => [entry.id, entry]));
+        this._lastSync = persisted.lastSync;
 
-            const data = [];
+        try {
+            // Incremental query: only docs created after our last sync. On the very
+            // first visit (_lastSync null) this pulls the recent history, capped.
+            let query = this.collection.orderBy('createdAt', 'desc').limit(this._readLimit);
+            if (this._lastSync) {
+                query = this.collection
+                    .where('createdAt', '>', this._lastSync)
+                    .orderBy('createdAt', 'desc')
+                    .limit(this._readLimit);
+            }
+
+            const snapshot = await query.get();
+
+            let newCount = 0;
+            let maxCreatedAt = this._lastSync;
             snapshot.forEach(doc => {
-                data.push({ id: doc.id, ...doc.data() });
+                const entry = { id: doc.id, ...doc.data() };
+                byId.set(entry.id, entry);
+                newCount++;
+                if (entry.createdAt && (!maxCreatedAt || entry.createdAt > maxCreatedAt)) {
+                    maxCreatedAt = entry.createdAt;
+                }
             });
 
-            // Update cache
+            // Merge → sort newest first → bound the persisted size.
+            let data = Array.from(byId.values())
+                .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+                .slice(0, this._readLimit);
+
+            this._lastSync = maxCreatedAt || this._lastSync;
             this._cache = data;
             this._cacheTimestamp = now;
+            this._savePersistedCache(data, this._lastSync);
 
-            console.log(`📊 Loaded ${data.length} feedback entries from Firebase`);
+            console.log(`📊 Feedback: ${newCount} new from Firebase, ${data.length} total cached`);
             return data;
         } catch (error) {
             console.error('❌ Failed to load feedback from Firebase:', error);
-            // Fallback: read from localStorage
+            // Fallback: whatever we have persisted, else the offline-entry store.
+            if (persisted.data.length > 0) return persisted.data;
             return this._loadFromLocalStorage();
+        }
+    }
+
+    /**
+     * Load the persistent read-cache from localStorage.
+     * @returns {{ data: Array, lastSync: string|null }}
+     */
+    _loadPersistedCache() {
+        try {
+            const raw = localStorage.getItem(this._persistKey);
+            if (!raw) return { data: [], lastSync: null };
+            const parsed = JSON.parse(raw);
+            return {
+                data: Array.isArray(parsed.data) ? parsed.data : [],
+                lastSync: parsed.lastSync || null
+            };
+        } catch (e) {
+            return { data: [], lastSync: null };
+        }
+    }
+
+    /**
+     * Persist the merged read-cache. Guarded against quota errors (step arrays can be large).
+     */
+    _savePersistedCache(data, lastSync) {
+        try {
+            localStorage.setItem(this._persistKey, JSON.stringify({ data, lastSync }));
+        } catch (e) {
+            // QuotaExceededError etc. — keep working with the in-memory cache only.
+            console.warn('Could not persist feedback cache (quota?), using memory cache only');
         }
     }
 
@@ -166,13 +230,19 @@ class FeedbackDB {
 
             console.log(`🔄 Syncing ${offlineEntries.length} offline entries to Firebase...`);
 
-            for (const entry of offlineEntries) {
-                delete entry._offlineEntry;
-                await this.collection.add({
-                    ...entry,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                    _syncedFromOffline: true
+            // Write in batched commits (max 500 ops/batch) instead of one round-trip per entry.
+            for (let i = 0; i < offlineEntries.length; i += 500) {
+                const chunk = offlineEntries.slice(i, i + 500);
+                const batch = db.batch();
+                chunk.forEach(entry => {
+                    delete entry._offlineEntry;
+                    batch.set(this.collection.doc(), {
+                        ...entry,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        _syncedFromOffline: true
+                    });
                 });
+                await batch.commit();
             }
 
             // Remove synced entries from localStorage

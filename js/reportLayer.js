@@ -14,6 +14,7 @@ class ReportLayer {
         this.markers = new Map(); // Firestore doc id -> google.maps.Marker
         this.unsubscribe = null;
         this.visible = true;
+        this.maxReports = 300; // cap live listener to most-recent N reports
     }
 
     // Map stored report type codes to their Chinese labels (same wording as the form).
@@ -36,7 +37,12 @@ class ReportLayer {
             return;
         }
 
-        this.unsubscribe = db.collection('reports').onSnapshot(
+        // Cap the live listener to the most recent reports so reads stay bounded
+        // no matter how large the collection grows (cost = limit, not whole collection).
+        this.unsubscribe = db.collection('reports')
+            .orderBy('timestamp', 'desc')
+            .limit(this.maxReports)
+            .onSnapshot(
             snapshot => {
                 snapshot.docChanges().forEach(change => {
                     const id = change.doc.id;
