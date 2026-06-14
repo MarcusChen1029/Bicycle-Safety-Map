@@ -66,15 +66,13 @@ class AccidentLayer {
         // 使用 Google Maps 內建熱力圖以改善效能
         // Performance Optimization: Aggressive downsampling.
         // 如果還是會卡，我們需要進一步減少資料量
-        // 顯示死亡(全部) 與 輕傷(抽樣 1/10) 以兼顧資訊量與效能
-        const severeAccidents = this.data.filter((accident, index) =>
-            accident.severity === '死亡' || (accident.severity === '輕傷' && index % 10 === 0)
-        );
+        // 只顯示死亡事故，維持熱點的代表性（避免大量輕傷把整個台北蓋滿、淡化每個熱點的意義）
+        const severeAccidents = this.data.filter(accident => accident.severity === '死亡');
 
         const heatmapData = severeAccidents.map(accident => {
             return {
                 location: new google.maps.LatLng(accident.position.lat, accident.position.lng),
-                weight: accident.severity === '死亡' ? 50 : 10
+                weight: 50
             };
         });
 
