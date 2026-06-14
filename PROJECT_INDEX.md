@@ -55,9 +55,9 @@ Loads `data/bike_data.json` (GeoJSON FeatureCollection), parses LineString/Multi
 color by type (專用/共用/normal). `polylines[]` is read by the route scorer.
 
 ### `js/accidentLayer.js` (106 lines) — `AccidentLayer`
-Loads `data/accidents.json` (`[{lat,lng,severity,...}]`), `parseAccidentData()` keeps only
-`{position, severity}`. `createHeatmap()` downsamples to 死亡 + every-10th 重傷 for perf,
-weights 死亡=50/重傷=10. `data[]` is read by the route scorer.
+Loads `data/accidents.json` (`[{lat,lng,severity}]`), `parseAccidentData()` keeps
+`{position, severity}`. `createHeatmap()` shows 死亡 (all) + every-10th 輕傷 for perf,
+weights 死亡=50/輕傷=10. `data[]` is read by the route scorer.
 
 ### `js/reportLayer.js` — `ReportLayer` (live road-issue warnings)
 Shows user-submitted reports as ⚠️ markers. `listen()` attaches a Firestore `onSnapshot`
@@ -91,10 +91,9 @@ filtered by availability; used by RoutePlanner's YouBike mode.
 
 ### `js/script.js` (438 lines) — UI: stats bars, tabs, report form, feedback modal
 - `updateStats()` / `updateLevel()` — progress bars + A–E grade in `.details` panel.
-- `DOMContentLoaded`: seeds sample stats; **tab switching** (Map/Route/Report nav-items↔view-panes); **report submit** → resolves location via `resolveReportLocation()` (parse `"lat,lng"` or geocode) then `db.collection('reports').add({...lat, lng})`; blocks submit if location can't be resolved; mock get-location (later overridden by main.js).
+- `DOMContentLoaded`: seeds sample stats; **tab switching** (Map/Route/Report nav-items↔view-panes); **report submit** → resolves location via `resolveReportLocation()` (parse `"lat,lng"` or geocode) then `db.collection('reports').add({...lat, lng})`; blocks submit if location can't be resolved.
 - `resolveReportLocation(text)` — top-level helper: parses `"lat, lng"` or geocodes an address → `{lat, lng, address?}`; throws if unresolvable.
-- **Feedback modal logic:** `showFeedbackModal/hideFeedbackModal`, star rating state `_feedbackRatings`, `_setStars`, `updatePublicOpinionStat()` (updates 4th stats bar 民眾意見), `showFeedbackToast()`. Submit button calls `saveFeedbackToFirebase` via `_routePlannerRef` (3-tier fallback to `feedbackDB.saveFeedback`).
-- ⚠️ Contains a stale unused `initMap()` and a mock get-location handler that main.js replaces.
+- **Feedback modal logic:** `showFeedbackModal/hideFeedbackModal`, star rating state `_feedbackRatings`, `_setStars`, `updatePublicOpinionStat()` (updates 4th stats bar 民眾意見), `showFeedbackToast()`. Submit button calls `saveFeedbackToFirebase` via `_routePlannerRef`, falling back to `feedbackDB.saveFeedback`.
 
 ---
 
@@ -103,25 +102,26 @@ filtered by availability; used by RoutePlanner's YouBike mode.
 - **`css/style.css`** (895 lines) — all styling (container, panes, details panel, stats bars, joystick, nav banner, feedback modal/toast, favorites).
 
 ## Data files — `data/`
-- **`accidents.json`** (~7.9 MB) — `[{lat,lng,severity,date,location,description}]`; consumed by AccidentLayer. severity values: 死亡/輕傷/無傷/不明.
+- **`accidents.json`** (~3.5 MB) — `[{lat,lng,severity}]`; consumed by AccidentLayer. severity values: 死亡/輕傷/無傷/不明. (Slimmed from ~7.9 MB; `transfer.py` now emits only these 3 fields.)
 - **`bike_data.json`** (~11.9 MB) — GeoJSON FeatureCollection of bike lanes (Chinese property keys); consumed by BikeLaneLayer.
-- **`bike_data_organized.json`** (~11.4 MB) — same data, English property keys (county/township/start/end…). **Not currently loaded** by the app.
-- **`output.json`** (~9.9 MB) — intermediate accident dump (Chinese keys, x/y座標). Not loaded by app.
+- **`bike_data_organized.json`** (~11.4 MB) — same data, English property keys. **Not loaded** by the app; **git-untracked** (in `.gitignore`), kept locally only.
+- **`output.json`** (~9.9 MB) — intermediate accident dump (Chinese keys, x/y座標). **Not loaded** by app; **git-untracked** (in `.gitignore`), kept locally only.
 
 ## Python utilities (data prep / testing — run manually, not part of the web app)
 - **`transfer.py`** — `data.csv` (big5) → `data/accidents.json`. Filters vehicle types C/F/H, maps 受傷程度→severity, ROC year→AD date.
 - **`dataGain.py`** — KML (`台灣本島自行車道.kml`) → `bike_data.json` GeoJSON.
 - **`check_fatal.py`** — counts severities in accidents.json → `fatal_count.txt`.
 - **`check_headers.py`** — prints `data.csv` header row.
-- **`inject_low_scores.py`** — test tool: injects 30 low-score feedback docs onto 忠孝東路 via Firestore REST to verify route avoidance. ⚠️ **Still points at the OLD project `mapcomment-8f128` + old API key** — out of sync with the app's `bycyclesafetymap`.
+- **`inject_low_scores.py`** — test tool: injects 30 low-score feedback docs onto 忠孝東路 via Firestore REST to verify route avoidance. Targets `bycyclesafetymap` (matches `js/firebaseConfig.js`).
 
 ## Raw source data (repo root)
 - `data.csv`, `bike_stop.csv` — source CSVs. `台灣本島自行車道.kml` / `_organized.kml` — bike-lane KML. `事故標誌.pdf` — reference doc. `headers.txt`, `fatal_count.txt` — generated text.
 
-## Firebase config files (repo root, untracked)
-- `firestore.rules` — open read/write rules for `bike_map_opinions` + `reports`.
+## Firebase config & meta files (repo root)
+- `firestore.rules` — currently open read/write rules for `bike_map_opinions` + `reports` (hardening deferred).
 - `firebase.json` — points Firestore rules at `firestore.rules`.
 - `.firebaserc` — default project `bycyclesafetymap`.
+- `README.md` — human-facing run/deploy/data-prep guide. `.gitignore` — ignores node_modules, Firebase logs, and the two large unused data dumps.
 
 ---
 
@@ -130,5 +130,5 @@ filtered by availability; used by RoutePlanner's YouBike mode.
 - Two write paths to Firestore: feedback via `feedbackDB` (`bike_map_opinions`), reports via raw `db` (`reports`).
 - `feedbackDB` and `db` are globals from `firebaseConfig.js`; `RoutePlanner` reached via `window._routePlannerRef`.
 - Firestore failures are silent (fall back to localStorage / show alert) — check Console + network if data "doesn't save".
-- Big JSON data files (~30 MB total) — avoid reading them whole; sample with head/limits.
-- `inject_low_scores.py` project mismatch is a known follow-up.
+- Big JSON data files — `bike_data.json` (~11.9 MB) is loaded whole; avoid reading it entirely, sample with head/limits. The two ~10 MB dumps are untracked.
+- Firestore security rules are intentionally still open (`allow read, write: if true`); hardening was deferred. Revisit before any public launch.
