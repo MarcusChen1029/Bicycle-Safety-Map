@@ -10,9 +10,9 @@ import json
 import random
 from datetime import datetime, timezone
 
-# Firebase 設定
-PROJECT_ID = "mapcomment-8f128"
-API_KEY = "AIzaSyARsnFTWt2MSbQc2mL8_5iIXqIoPcg2f70"
+# Firebase 設定 (must match js/firebaseConfig.js)
+PROJECT_ID = "bycyclesafetymap"
+API_KEY = "AIzaSyCe3E6azBZ2NGXTnROpt1gsUKUtKuq6L1Q"
 FIRESTORE_URL = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/bike_map_opinions"
 
 # 忠孝東路座標點（國父紀念館 → 台北車站）
