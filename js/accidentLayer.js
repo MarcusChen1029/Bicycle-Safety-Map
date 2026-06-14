@@ -66,9 +66,9 @@ class AccidentLayer {
         // 使用 Google Maps 內建熱力圖以改善效能
         // Performance Optimization: Aggressive downsampling.
         // 如果還是會卡，我們需要進一步減少資料量
+        // 顯示死亡(全部) 與 輕傷(抽樣 1/10) 以兼顧資訊量與效能
         const severeAccidents = this.data.filter((accident, index) =>
-            // 只顯示死亡，或是重傷且抽樣比例更低 (1/20) 來減少渲染壓力
-            accident.severity === '死亡' || (accident.severity === '重傷' && index % 10 === 0)
+            accident.severity === '死亡' || (accident.severity === '輕傷' && index % 10 === 0)
         );
 
         const heatmapData = severeAccidents.map(accident => {
