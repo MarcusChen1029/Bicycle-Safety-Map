@@ -321,7 +321,6 @@ class BikeMapApp {
 
         // Check if route planner is initialized
         if (this.routePlanner) {
-          this.routePlanner.open();
           this.routePlanner.setDestination(e.latLng);
         }
       });
