@@ -26,11 +26,12 @@ Firestore** (with localStorage fallback). UI text is Traditional Chinese.
 
 ### `js/firebaseConfig.js` (195 lines) — Firebase init + feedback DAO
 - Initializes Firebase, exposes globals **`db`** (Firestore) and **`feedbackDB`**.
-- Class **`FeedbackDB`** → collection `bike_map_opinions`, with 30s in-memory cache:
+- Class **`FeedbackDB`** → collection `bike_map_opinions`, with 30s in-memory cache + persistent localStorage read-cache:
   - `saveFeedback(data)` — adds doc + serverTimestamp; on failure falls back to localStorage.
-  - `getAllFeedback()` — cached read, ordered by `createdAt desc`; localStorage fallback.
+  - `getAllFeedback()` — **incremental sync**: seeds from localStorage cache, fetches only docs `where('createdAt' > _lastSync)` (capped `_readLimit=1000`), merges/dedupes by id, re-persists. Returning visitors read ~0 docs. Falls back to persisted/localStorage data on error.
+  - `_loadPersistedCache()` / `_savePersistedCache()` — localStorage read-cache (`bike_map_opinions_cache`), quota-guarded.
   - `getFeedbackForSteps(stepPoints)` — haversine match within 50 m.
-  - `_saveToLocalStorage` / `_loadFromLocalStorage` / `syncOfflineEntries()` (runs on load).
+  - `_saveToLocalStorage` / `_loadFromLocalStorage` / `syncOfflineEntries()` (runs on load; writes via batched `WriteBatch`, 500/commit).
 - Note: `db` is also used directly in `script.js` for the `reports` collection.
 
 ### `js/config.js` (73 lines) — `CONFIG` global constants
@@ -60,8 +61,9 @@ weights 死亡=50/重傷=10. `data[]` is read by the route scorer.
 
 ### `js/reportLayer.js` — `ReportLayer` (live road-issue warnings)
 Shows user-submitted reports as ⚠️ markers. `listen()` attaches a Firestore `onSnapshot`
-listener on the `reports` collection → loads all existing reports on startup (persistent,
-everyone) and adds/moves/removes markers live as reports change. `markers` is a Map keyed by
+listener on the `reports` collection, **capped** `orderBy('timestamp','desc').limit(maxReports=300)`
+so reads stay bounded → loads recent reports on startup (persistent, everyone) and
+adds/moves/removes markers live as reports change. `markers` is a Map keyed by
 doc id; docs without numeric `lat`/`lng` are skipped. Click → shared InfoWindow with type
 label (`TYPE_LABELS` code→Chinese), description, place, date. `toggle()` for visibility.
 Depends on global `db` + Google Maps. Instantiated in `main.js init()`.
