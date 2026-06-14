@@ -48,19 +48,12 @@ try:
                 except:
                     date_str = ""
 
-                # accidents.json format: lat, lng, severity, date, location, description
+                # accidents.json: only fields the app consumes (accidentLayer keeps lat/lng/severity)
                 item = {
                     "lat": lat,
                     "lng": lng,
-                    "severity": severity,
-                    "date": date_str,
-                    "location": row.get("肇事地點", ""),
-                    "description": row.get("事故類型及型態", "")
+                    "severity": severity
                 }
-                
-                # Validation
-                if not item["date"]:
-                     pass
 
                 results.append(item)
             except (ValueError, KeyError) as e:
