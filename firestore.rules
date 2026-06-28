@@ -16,5 +16,10 @@ service cloud.firestore {
     match /reports/{docId} {
       allow read, write: if true;
     }
+
+    // Crowd-sourced per-road 0-1 ratings (road-name aggregates: sum/count)
+    match /road_scores/{docId} {
+      allow read, write: if true;
+    }
   }
 }

@@ -434,6 +434,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (submitBtn) {
         submitBtn.addEventListener('click', async () => {
             const planner = window._routePlannerRef;
+            // Full-marks gate: treat the route as "all good" if EITHER star
+            // dimension is 5. (Two-dimension star UI predates the binary
+            // per-road vote model; max() keeps a single 5★ as the all-good shortcut.)
             const stars = Math.max(_feedbackRatings.safety, _feedbackRatings.smoothness);
             // 第一次按：未滿星且尚未顯示清單 → 展開「哪幾條路不好」
             const checklistVisible =

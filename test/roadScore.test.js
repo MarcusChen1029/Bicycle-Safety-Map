@@ -5,6 +5,7 @@ const { roadScoreAdjustment } = require('../js/roadScore.js');
 test('no votes is neutral', () => {
   assert.strictEqual(roadScoreAdjustment(null, 0), 0);
   assert.strictEqual(roadScoreAdjustment(1, 0), 0);
+  assert.strictEqual(roadScoreAdjustment(1, -1), 0);
 });
 
 test('score 0.5 is neutral regardless of count', () => {
