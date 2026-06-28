@@ -430,38 +430,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('feedback-submit-btn');
     if (submitBtn) {
         submitBtn.addEventListener('click', async () => {
-            if (_feedbackRatings.safety === 0 || _feedbackRatings.smoothness === 0) {
-                alert('請為安全性和順暢度都進行評分！');
+            const planner = window._routePlannerRef;
+            const stars = Math.max(_feedbackRatings.safety, _feedbackRatings.smoothness);
+            // 第一次按：未滿星且尚未顯示清單 → 展開「哪幾條路不好」
+            const checklistVisible =
+                document.getElementById('feedback-road-checklist').style.display !== 'none';
+
+            if (stars === 0) {
+                alert('請先點選星數！');
                 return;
             }
 
-            // Disable button to prevent double-submit
+            if (stars < 5 && !checklistVisible) {
+                const roads = planner ? planner.getRouteRoadNames() : [];
+                if (roads.length === 0) {
+                    // 無可辨識路名 → 無法逐路投票，直接結束
+                    hideFeedbackModal();
+                    if (planner) await planner.refreshRoadScores();
+                    showFeedbackToast('✅ 感謝您的回饋！');
+                    return;
+                }
+                _renderRoadChecklist(roads);
+                _showRoadChecklist(true);
+                submitBtn.textContent = '確認送出';
+                return;
+            }
+
             submitBtn.disabled = true;
             submitBtn.textContent = '送出中...';
-
             try {
-                // Save via the live RoutePlanner (set on window by main.js) so the route's
-                // path is attached; fall back to a bare feedback doc if it's unavailable.
-                if (window._routePlannerRef) {
-                    await window._routePlannerRef.saveFeedbackToFirebase(
-                        _feedbackRatings.safety,
-                        _feedbackRatings.smoothness
-                    );
-                } else {
-                    console.warn('No routePlanner reference found, saving directly to Firebase');
-                    await feedbackDB.saveFeedback({
-                        safetyScore: _feedbackRatings.safety,
-                        smoothnessScore: _feedbackRatings.smoothness,
-                        averageScore: (_feedbackRatings.safety + _feedbackRatings.smoothness) / 2,
-                        steps: [],
-                        overviewPath: []
-                    });
+                const roads = planner ? planner.getRouteRoadNames() : [];
+                const bad = stars < 5 ? new Set(_getCheckedBadRoads()) : new Set();
+                const votes = {};
+                roads.forEach(name => { votes[name] = bad.has(name) ? 0 : 1; });
+
+                if (Object.keys(votes).length > 0) {
+                    await roadScoreDB.submitVotes(votes);
                 }
+                if (planner) await planner.refreshRoadScores();
 
                 hideFeedbackModal();
                 showFeedbackToast('✅ 感謝您的回饋！');
             } catch (error) {
-                console.error('Failed to save feedback:', error);
+                console.error('Failed to save road votes:', error);
                 alert('回饋送出失敗，請稍後再試。');
             } finally {
                 submitBtn.disabled = false;

@@ -663,67 +663,19 @@ class RoutePlanner {
     }
 
     /**
-     * Save user feedback to Firebase via FeedbackDB
-     * Extracts key path segments from lastRoute and stores with ratings
-     * @param {number} safetyScore - 1-5 star rating for safety
-     * @param {number} smoothnessScore - 1-5 star rating for smoothness
+     * Road names of the just-finished route (for the feedback checklist).
      */
-    async saveFeedbackToFirebase(safetyScore, smoothnessScore) {
-        if (!this.lastRoute) {
-            console.warn('No lastRoute to save feedback for');
-            return;
-        }
+    getRouteRoadNames() {
+        if (!this.lastRoute) return [];
+        return extractRoadNames(this.lastRoute);
+    }
 
-        // Extract key path points from each step for coordinate matching
-        const steps = [];
-        this.lastRoute.legs.forEach(leg => {
-            leg.steps.forEach(step => {
-                // Save start, end, and midpoint of each step
-                steps.push({
-                    lat: step.start_location.lat(),
-                    lng: step.start_location.lng()
-                });
-                steps.push({
-                    lat: step.end_location.lat(),
-                    lng: step.end_location.lng()
-                });
-                // Add midpoint for better matching density
-                const midIdx = Math.floor(step.path.length / 2);
-                if (step.path[midIdx]) {
-                    steps.push({
-                        lat: step.path[midIdx].lat(),
-                        lng: step.path[midIdx].lng()
-                    });
-                }
-            });
-        });
-
-        // Build the overview path for broader matching
-        const overviewPath = this.lastRoute.overview_path
-            ? this.lastRoute.overview_path.map(p => ({ lat: p.lat(), lng: p.lng() }))
-            : [];
-
-        const feedbackData = {
-            safetyScore: safetyScore,
-            smoothnessScore: smoothnessScore,
-            averageScore: (safetyScore + smoothnessScore) / 2,
-            steps: steps,
-            overviewPath: overviewPath,
-            routeSummary: this.lastRoute.summary || '',
-            distance: this.lastRoute.legs[0] ? this.lastRoute.legs[0].distance.text : '',
-            duration: this.lastRoute.legs[0] ? this.lastRoute.legs[0].duration.text : ''
-        };
-
-        // Save to Firebase
-        const docId = await feedbackDB.saveFeedback(feedbackData);
-
-        // Refresh opinions cache for future scoring
+    /**
+     * Reload the road-score cache after votes are submitted; clear the route.
+     */
+    async refreshRoadScores() {
         await this._loadRoadScores();
-
-        // Clear lastRoute after saving
         this.lastRoute = null;
         this.lastFinalResult = null;
-
-        return docId;
     }
 }
