@@ -15,6 +15,9 @@ test('parseRoadName pulls road name out of <b> tags', () => {
 
 test('parseRoadName falls back to plain-text road token', () => {
   assert.strictEqual(parseRoadName('繼續直行上信義路五段'), '信義路');
+  assert.strictEqual(parseRoadName('右轉進入中山北路'), '中山北路');
+  assert.strictEqual(parseRoadName('請沿羅斯福路三段直行'), '羅斯福路');
+  assert.strictEqual(parseRoadName('進入忠孝東路四段'), '忠孝東路');
 });
 
 test('parseRoadName returns null when no road found', () => {

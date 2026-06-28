@@ -7,6 +7,11 @@
 const ROAD_SUFFIX = /(路|街|大道|大街|橋|公路|環|線|道)$/;
 const SECTION_SUFFIX = /[一二三四五六七八九十0-9]+段$/;
 
+// Leading navigation/direction words Google emits before the road name in
+// plain-text (no-<b>) instructions; stripped so the greedy road match starts
+// at the actual road name.
+const NAV_PREFIX = /^(?:請|繼續|直行|左轉|右轉|迴轉|沿著|沿|往|向|朝|經過|行駛|靠左|靠右|靠|進入|上|在|並|然後|轉|的|，|,|\s)+/;
+
 function normalizeRoadName(name) {
   if (!name) return '';
   let n = String(name).replace(/\s+/g, '').trim();
@@ -32,9 +37,10 @@ function parseRoadName(instructionsHtml) {
     }
   }
 
-  // 2. Fallback: strip all tags, find a Chinese road token in plain text.
-  const plain = html.replace(/<[^>]*>/g, '');
-  const m = plain.match(/([一-龥]{2})(?:路|街|大道|大街|橋|公路|環|線|道)(?:[一二三四五六七八九十0-9]+段)?/);
+  // 2. Fallback: strip tags + leading nav words, then greedy road-token match.
+  let plain = html.replace(/<[^>]*>/g, '');
+  plain = plain.replace(NAV_PREFIX, '');
+  const m = plain.match(/[一-龥]+(?:路|街|大道|大街|橋|公路|環|線|道)(?:[一二三四五六七八九十0-9]+段)?/);
   if (m) {
     const norm = normalizeRoadName(m[0]);
     if (norm) return norm;
