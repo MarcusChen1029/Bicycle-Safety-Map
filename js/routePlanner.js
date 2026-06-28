@@ -1,3 +1,5 @@
+const ROAD_OPINION_K = 1; // 路名民眾分數權重（可微調）
+
 class RoutePlanner {
     constructor(map, accidentLayer, youbikeLayer, bikeLaneLayer) {
         this.map = map;
@@ -26,25 +28,25 @@ class RoutePlanner {
         // YouBike mode: when on, routes are snapped station-to-station (toggled from the map UI)
         this.youbikeRouteMode = false;
 
-        // Pre-load Firebase opinions cache
-        this._opinionsCache = null;
-        this._loadOpinionsCache();
+        // Pre-load Firebase road scores cache
+        this._roadScores = new Map();
+        this._loadRoadScores();
 
         console.log('✅ RoutePlanner initialized');
     }
 
     /**
-     * Pre-load opinions from Firebase into local cache for scoring
+     * Pre-load per-road scores from Firebase into local cache for scoring
      */
-    async _loadOpinionsCache() {
+    async _loadRoadScores() {
         try {
-            if (typeof feedbackDB !== 'undefined') {
-                this._opinionsCache = await feedbackDB.getAllFeedback();
-                console.log(`📊 Loaded ${this._opinionsCache.length} opinion entries for scoring`);
+            if (typeof roadScoreDB !== 'undefined') {
+                this._roadScores = await roadScoreDB.getAll();
+                console.log(`🛣️ Loaded ${this._roadScores.size} road scores for routing`);
             }
         } catch (e) {
-            console.warn('Could not pre-load opinions cache:', e);
-            this._opinionsCache = [];
+            console.error('Failed to load road scores:', e);
+            this._roadScores = new Map();
         }
     }
 
@@ -516,7 +518,6 @@ class RoutePlanner {
         const accidents = (this.accidentLayer && this.accidentLayer.data) ? this.accidentLayer.data : [];
         const bikeLanesPolys = (this.bikeLaneLayer && this.bikeLaneLayer.polylines) ? this.bikeLaneLayer.polylines : [];
         const bounds = route.bounds;
-        const opinions = this._opinionsCache || [];
 
         const relevantAccidents = accidents.filter(acc => bounds.contains(acc.position));
 
@@ -572,48 +573,21 @@ class RoutePlanner {
                 }
 
                 // ========================================================
-                // 民眾意見 (Public Opinion) Evaluation - Firebase data
+                // 民眾意見 (Public Opinion) — 路名 0-1 分數
                 // ========================================================
-                if (opinions.length > 0) {
-                    // Find overlapping feedback for this step
-                    const matchingOpinions = opinions.filter(entry => {
-                        if (!entry.steps || entry.steps.length === 0) return false;
-                        return entry.steps.some(savedStep => {
-                            const savedLatLng = new google.maps.LatLng(savedStep.lat, savedStep.lng);
-                            return google.maps.geometry.poly.isLocationOnEdge(savedLatLng, stepPolyline, 0.0005);
-                        });
-                    });
-
-                    if (matchingOpinions.length > 0) {
-                        // Calculate average score from safety + smoothness
-                        let totalOpinionScore = 0;
-                        matchingOpinions.forEach(op => {
-                            const avg = ((op.safetyScore || 3) + (op.smoothnessScore || 3)) / 2;
-                            totalOpinionScore += avg;
-                        });
-                        const averageScore = totalOpinionScore / matchingOpinions.length;
-                        const sampleSize = matchingOpinions.length;
-
-                        // Track for stats display
-                        publicOpinionTotalScore += averageScore;
-                        publicOpinionStepCount++;
-
-                        // Apply penalty W formula: more reports = higher confidence = stronger penalty
-                        // W = (3 - avg_score) * confidence_multiplier
-                        // confidence grows with sample size using log scale, capped at 3x
-                        if (averageScore < 3) {
-                            const confidence = Math.min(Math.log2(sampleSize + 1), 3);
-                            const W = (3 - averageScore) * confidence;
-                            stepScore -= W;
-                            reasons.push(`Public Opinion W=-${W.toFixed(2)} (avg:${averageScore.toFixed(1)}, n:${sampleSize}, conf:${confidence.toFixed(1)})`);
-                        }
-
-                        // Hidden danger zone: average < 2.5 → extra -2
-                        if (averageScore < 2.5) {
-                            stepScore -= 2;
+                const roadName = parseRoadName(step.instructions);
+                if (roadName) {
+                    const rec = this._roadScores.get(roadName);
+                    if (rec && rec.count > 0) {
+                        const s = rec.sum / rec.count; // 0-1
+                        const adj = roadScoreAdjustment(s, rec.count, ROAD_OPINION_K);
+                        stepScore += adj;
+                        reasons.push(`Road "${roadName}" ${s.toFixed(2)} (n:${rec.count}, ${adj >= 0 ? '+' : ''}${adj.toFixed(2)})`);
+                        if (s < 0.5) {
                             isDangerous = true;
-                            reasons.push(`Hidden Danger Zone (avg:${averageScore.toFixed(1)} < 2.5, -2)`);
                         }
+                        publicOpinionTotalScore += s;     // 0-1，後面換算 bar
+                        publicOpinionStepCount++;
                     }
                 }
 
@@ -625,7 +599,7 @@ class RoutePlanner {
         });
 
         // Update Public Opinion stats bar
-        const opinionBarScore = this._computePublicOpinionBarScore(publicOpinionTotalScore, publicOpinionStepCount, opinions.length);
+        const opinionBarScore = this._computePublicOpinionBarScore(publicOpinionTotalScore, publicOpinionStepCount);
         if (typeof updatePublicOpinionStat === 'function') {
             updatePublicOpinionStat(opinionBarScore);
         }
@@ -637,13 +611,12 @@ class RoutePlanner {
      * Compute the public opinion bar score (0-100 scale)
      * Default: 70 (B grade) if no data exists
      */
-    _computePublicOpinionBarScore(totalScore, stepCount, totalOpinions) {
-        if (totalOpinions === 0 || stepCount === 0) {
-            return 70; // Default B-grade baseline
+    _computePublicOpinionBarScore(totalScore, stepCount /*, totalOpinions */) {
+        if (stepCount === 0) {
+            return 70; // 無資料時的 B-grade 基準
         }
-        const avgStepScore = totalScore / stepCount; // 1-5 scale
-        // Convert 1-5 scale to 0-100: ((score - 1) / 4) * 100
-        return Math.round(((avgStepScore - 1) / 4) * 100);
+        const avg = totalScore / stepCount; // 0-1
+        return Math.round(avg * 100);
     }
 
     /**
@@ -745,50 +718,12 @@ class RoutePlanner {
         const docId = await feedbackDB.saveFeedback(feedbackData);
 
         // Refresh opinions cache for future scoring
-        await this._loadOpinionsCache();
+        await this._loadRoadScores();
 
         // Clear lastRoute after saving
         this.lastRoute = null;
         this.lastFinalResult = null;
 
         return docId;
-    }
-
-    /**
-     * Get the current public opinion score for the last planned route
-     * Returns 70 (B-grade) if no data or no route
-     */
-    async getPublicOpinionScore() {
-        if (!this.lastRoute) return 70;
-
-        const opinions = this._opinionsCache || [];
-        if (opinions.length === 0) return 70;
-
-        let totalOpinionScore = 0;
-        let matchedCount = 0;
-
-        this.lastRoute.legs.forEach(leg => {
-            leg.steps.forEach(step => {
-                const stepPolyline = new google.maps.Polyline({ path: step.path });
-                const matched = opinions.filter(entry => {
-                    if (!entry.steps || entry.steps.length === 0) return false;
-                    return entry.steps.some(savedStep => {
-                        const savedLatLng = new google.maps.LatLng(savedStep.lat, savedStep.lng);
-                        return google.maps.geometry.poly.isLocationOnEdge(savedLatLng, stepPolyline, 0.0005);
-                    });
-                });
-
-                if (matched.length > 0) {
-                    let stepAvg = 0;
-                    matched.forEach(op => {
-                        stepAvg += ((op.safetyScore || 3) + (op.smoothnessScore || 3)) / 2;
-                    });
-                    totalOpinionScore += stepAvg / matched.length;
-                    matchedCount++;
-                }
-            });
-        });
-
-        return this._computePublicOpinionBarScore(totalOpinionScore, matchedCount, opinions.length);
     }
 }
