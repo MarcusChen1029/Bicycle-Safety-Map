@@ -219,7 +219,7 @@ function resolveReportLocation(text) {
 // ================================================================
 
 // Current ratings state
-let _feedbackRatings = { safety: 0, smoothness: 0 };
+let _feedbackRatings = { overall: 0 };
 
 const _scoreLabels = {
     0: '尚未評分',
@@ -239,7 +239,7 @@ function showFeedbackModal() {
     if (!modal) return;
 
     // Reset ratings
-    _feedbackRatings = { safety: 0, smoothness: 0 };
+    _feedbackRatings = { overall: 0 };
     _resetStars();
     _showRoadChecklist(false);
 
@@ -269,16 +269,11 @@ function _resetStars() {
         star.classList.remove('active', 'hover-preview');
     });
 
-    const safetyText = document.getElementById('safety-score-text');
-    const smoothnessText = document.getElementById('smoothness-score-text');
+    const overallText = document.getElementById('overall-score-text');
 
-    if (safetyText) {
-        safetyText.textContent = _scoreLabels[0];
-        safetyText.classList.remove('scored');
-    }
-    if (smoothnessText) {
-        smoothnessText.textContent = _scoreLabels[0];
-        smoothnessText.classList.remove('scored');
+    if (overallText) {
+        overallText.textContent = _scoreLabels[0];
+        overallText.classList.remove('scored');
     }
 }
 
@@ -434,10 +429,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (submitBtn) {
         submitBtn.addEventListener('click', async () => {
             const planner = window._routePlannerRef;
-            // Full-marks gate: treat the route as "all good" if EITHER star
-            // dimension is 5. (Two-dimension star UI predates the binary
-            // per-road vote model; max() keeps a single 5★ as the all-good shortcut.)
-            const stars = Math.max(_feedbackRatings.safety, _feedbackRatings.smoothness);
+            // Full-marks gate: 5 stars = whole route is "all good" (every road
+            // votes 1); fewer stars opens the checklist to flag the bad roads.
+            const stars = _feedbackRatings.overall;
             // 第一次按：未滿星且尚未顯示清單 → 展開「哪幾條路不好」
             const checklistVisible =
                 document.getElementById('feedback-road-checklist').style.display !== 'none';
