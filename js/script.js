@@ -241,6 +241,7 @@ function showFeedbackModal() {
     // Reset ratings
     _feedbackRatings = { safety: 0, smoothness: 0 };
     _resetStars();
+    _showRoadChecklist(false);
 
     modal.style.display = 'flex';
     console.log('📋 Feedback modal shown');
@@ -304,6 +305,32 @@ function _setStars(dimension, value) {
             textEl.classList.remove('scored');
         }
     }
+}
+
+/**
+ * Render the route's road names as a checkable "which were bad?" list.
+ */
+function _renderRoadChecklist(roadNames) {
+  const list = document.getElementById('feedback-road-list');
+  if (!list) return;
+  list.innerHTML = '';
+  roadNames.forEach((name, i) => {
+    const id = `bad-road-${i}`;
+    const label = document.createElement('label');
+    label.className = 'feedback-road-item';
+    label.innerHTML = `<input type="checkbox" value="${name}" id="${id}"><span>${name}</span>`;
+    list.appendChild(label);
+  });
+}
+
+function _getCheckedBadRoads() {
+  return Array.from(document.querySelectorAll('#feedback-road-list input:checked'))
+    .map(el => el.value);
+}
+
+function _showRoadChecklist(show) {
+  const box = document.getElementById('feedback-road-checklist');
+  if (box) box.style.display = show ? 'block' : 'none';
 }
 
 /**

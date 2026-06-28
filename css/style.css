@@ -806,3 +806,9 @@ body.nav-mode-active .map {
     background: #e0e0e0;
     transform: scale(0.95);
 }
+
+/* Road checklist in feedback modal */
+.feedback-road-checklist { margin-top: 12px; }
+.feedback-road-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+.feedback-road-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: #f5f5f5; cursor: pointer; font-size: 14px; }
+.feedback-road-item input { width: 16px; height: 16px; }
