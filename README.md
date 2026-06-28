@@ -15,7 +15,7 @@ npx http-server -p 8080
 Open http://localhost:8080.
 
 ## Firebase
-- Project: `bycyclesafetymap`. Collections: `bike_map_opinions`, `reports`.
+- Project: `bycyclesafetymap`. Collections: `road_scores` (road-name 0-1 rating, current), `reports`, `bike_map_opinions` (deprecated, historical data only).
 - Deploy security rules: `firebase deploy --only firestore:rules`
   (or paste `firestore.rules` into the Firestore Rules console and Publish).
 

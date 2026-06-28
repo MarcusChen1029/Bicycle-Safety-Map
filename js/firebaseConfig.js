@@ -22,6 +22,8 @@ console.log('🔥 Firebase initialized');
  * FeedbackDB - Firebase Firestore wrapper for bike_map_opinions
  * Replaces localStorage with cloud-based persistence
  */
+// DEPRECATED: bike_map_opinions 民眾意見機制已由 road_scores 路名評分取代。
+// 此類別暫留供歷史資料讀取，未連接至評分流程。
 class FeedbackDB {
     constructor() {
         this.collection = db.collection('bike_map_opinions');
@@ -259,6 +261,3 @@ class FeedbackDB {
 
 // Global instance
 const feedbackDB = new FeedbackDB();
-
-// Try to sync offline entries when page loads
-feedbackDB.syncOfflineEntries();
