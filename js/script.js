@@ -243,6 +243,9 @@ function showFeedbackModal() {
     _resetStars();
     _showRoadChecklist(false);
 
+    const submitBtn = document.getElementById('feedback-submit-btn');
+    if (submitBtn) submitBtn.textContent = '送出回饋';
+
     modal.style.display = 'flex';
     console.log('📋 Feedback modal shown');
 }
