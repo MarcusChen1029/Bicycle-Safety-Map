@@ -19,3 +19,17 @@ docs/superpowers/
 PROJECT_INDEX.md
 .superpowers/
 .claude/
+docs/firebase_token.md
+
+# Python
+__pycache__/
+
+# Raw data inputs / one-off script outputs (only data/accidents.json and
+# data/bike_data.json are loaded by the site)
+data.csv
+bike_stop.csv
+headers.txt
+fatal_count.txt
+*.pdf
+*.kml
+
