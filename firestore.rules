@@ -1,25 +1,94 @@
 rules_version = '2';
 
 // Bicycle Safety Map - Firestore security rules
-// NOTE: These allow unauthenticated read/write because the app has no login.
-// This matches the behavior of the previous project. Fine for a class/demo,
-// but anyone can read or write these collections. Lock down before production.
+// NOTE: The app has no login (no Firebase Auth), so these rules cannot key
+// anything off request.auth. Instead we validate SHAPE: field names, types,
+// lengths and value ranges are pinned to exactly what the app's own write
+// call sites produce (see js/roadScoreDB.js, js/script.js, js/reportLayer.js).
+// This narrows the anonymous-write hole (no more "write anything of any
+// shape") but does NOT close it: a malicious client can still forge a
+// validly-shaped document (e.g. a fake road_scores increment or a fake
+// report) since there is no server-side/auth-based gate. True closure needs
+// Firebase Auth + Cloud Functions aggregation, which is out of scope here.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Crowd-sourced ride feedback (safety / smoothness scores)
+    // DEPRECATED (see js/firebaseConfig.js FeedbackDB): superseded by
+    // road_scores. Grepped js/ — no live code path calls read/write/
+    // onSnapshot on this collection anymore (FeedbackDB is instantiated but
+    // none of its methods are ever invoked). Deny everything; any stray
+    // dead-code call simply fails/no-ops harmlessly (already wrapped in
+    // try/catch with a localStorage fallback in firebaseConfig.js).
     match /bike_map_opinions/{docId} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
 
-    // User-submitted road issue reports
+    // User-submitted road issue reports (js/script.js submit handler writes;
+    // js/reportLayer.js onSnapshot listener reads). Public read (the map
+    // shows everyone's reports). Writes are create-only (the app never
+    // edits or deletes a report after submit) and must match the exact
+    // field set/types produced by js/script.js:138-147.
     match /reports/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+
+      allow create: if
+        request.resource.data.keys().hasOnly(
+          ['type', 'description', 'location', 'address', 'lat', 'lng', 'timestamp', 'status']
+        ) &&
+        request.resource.data.type is string &&
+        request.resource.data.type in
+          ['pothole', 'illegal_parking', 'obstacle', 'faded_lines', 'accident', 'other'] &&
+        request.resource.data.description is string &&
+        request.resource.data.description.size() > 0 &&
+        request.resource.data.description.size() <= 500 &&
+        request.resource.data.location is string &&
+        request.resource.data.location.size() <= 200 &&
+        request.resource.data.address is string &&
+        request.resource.data.address.size() <= 200 &&
+        request.resource.data.lat is number &&
+        request.resource.data.lat >= 21.0 && request.resource.data.lat <= 26.5 &&
+        request.resource.data.lng is number &&
+        request.resource.data.lng >= 119.0 && request.resource.data.lng <= 123.0 &&
+        request.resource.data.timestamp == request.time &&
+        request.resource.data.status is string &&
+        request.resource.data.status == 'pending';
+
+      // No update/delete: the app never modifies a report after creation.
+      allow update, delete: if false;
     }
 
-    // Crowd-sourced per-road 0-1 ratings (road-name aggregates: sum/count)
+    // Crowd-sourced per-road aggregate ratings (js/roadScoreDB.js).
+    // Doc id = road name with '/' replaced by '_' (js/roadScoreDB.js:15-17);
+    // cap length to block junk-doc floods. Public read (score = sum/count
+    // computed client-side). Writes always go through
+    // batch.set(ref, {roadName, sum: increment(0|1), count: increment(1)},
+    // {merge:true}) — one vote adds exactly 1 to count and 0 or 1 to sum,
+    // so sum can never exceed count.
     match /road_scores/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+
+      allow create: if
+        docId.size() > 0 && docId.size() < 100 &&
+        request.resource.data.keys().hasOnly(['roadName', 'sum', 'count']) &&
+        request.resource.data.roadName is string &&
+        request.resource.data.roadName.size() > 0 &&
+        request.resource.data.roadName.size() < 100 &&
+        request.resource.data.count == 1 &&
+        request.resource.data.sum is int &&
+        request.resource.data.sum >= 0 && request.resource.data.sum <= 1;
+
+      allow update: if
+        docId.size() > 0 && docId.size() < 100 &&
+        request.resource.data.keys().hasOnly(['roadName', 'sum', 'count']) &&
+        request.resource.data.roadName is string &&
+        request.resource.data.roadName.size() > 0 &&
+        request.resource.data.roadName.size() < 100 &&
+        resource.data.count is int && resource.data.sum is int &&
+        request.resource.data.count == resource.data.count + 1 &&
+        request.resource.data.sum >= resource.data.sum &&
+        request.resource.data.sum <= resource.data.sum + 1;
+
+      allow delete: if false;
     }
   }
 }
