@@ -13,3 +13,23 @@ Thumbs.db
 # Large intermediate data dumps (not loaded by the app)
 data/output.json
 data/bike_data_organized.json
+
+# Local-only working docs & tooling (not for the repo)
+docs/superpowers/
+PROJECT_INDEX.md
+.superpowers/
+.claude/
+docs/firebase_token.md
+
+# Python
+__pycache__/
+
+# Raw data inputs / one-off script outputs (only data/accidents.json and
+# data/bike_data.json are loaded by the site)
+data.csv
+bike_stop.csv
+headers.txt
+fatal_count.txt
+*.pdf
+*.kml
+

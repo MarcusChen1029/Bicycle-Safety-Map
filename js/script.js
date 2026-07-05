@@ -1,76 +1,4 @@
-// Function to update progress bars and scores based on an array of values
-function updateStats(stats) {
-    // Select all stats items
-    const statItems = document.querySelectorAll('.stats-item');
-
-    // Loop through each stat item
-    statItems.forEach((item, index) => {
-        // Ensure we have data for this item
-        if (index < stats.length) {
-            const scoreElement = item.querySelector('.score');
-            const progressFill = item.querySelector('.progress-fill');
-            const value = stats[index];
-
-            // Update text score
-            if (scoreElement) {
-                scoreElement.textContent = value;
-            }
-
-            // Update progress bar width
-            if (progressFill) {
-                // Ensure value is between 0 and 100
-                const widthValue = Math.min(Math.max(value, 0), 100);
-                progressFill.style.width = widthValue + '%';
-
-                // Optional: Change color based on score (low score = red, high = green)
-                if (widthValue < 60) {
-                    progressFill.style.backgroundColor = '#dc3545'; // Red
-                } else if (widthValue < 80) {
-                    progressFill.style.backgroundColor = '#ffc107'; // Yellow
-                } else {
-                    progressFill.style.backgroundColor = '#28a745'; // Green
-                }
-            }
-        }
-    });
-}
-
-function updateLevel(array) {
-    let sum = 0;
-    array.forEach(item => {
-        sum += item;
-    });
-    if (array.length > 0) {
-        const average = sum / array.length;
-        if (average > 85) {
-            document.querySelector('.level').textContent = "A";
-            document.querySelector('.safety-level').style.backgroundColor = "#28a745";
-        } else if (average > 70) {
-            document.querySelector('.level').textContent = "B";
-            document.querySelector('.safety-level').style.backgroundColor = "#daff07ff";
-        } else if (average > 55) {
-            document.querySelector('.level').textContent = "C";
-            document.querySelector('.safety-level').style.backgroundColor = "#dc8e35ff";
-        } else if (average > 40) {
-            document.querySelector('.level').textContent = "D";
-            document.querySelector('.safety-level').style.backgroundColor = "#ff0000ff";
-        } else {
-            document.querySelector('.level').textContent = "E";
-            document.querySelector('.safety-level').style.backgroundColor = "#000000ff";
-        }
-    }
-}
-// Example: Initialize with some sample data when page loads
 document.addEventListener('DOMContentLoaded', () => {
-    // Sample scores: [Infrastructure, Risk, Accidents, Opinions]
-    const sampleScores = [100, 100, 90, 90];
-
-    // Call the function
-    updateStats(sampleScores);
-    updateLevel(sampleScores);
-    // Also set the header info for demo
-    document.querySelector('.header').textContent = "Taipei Main Station";
-
     // Navigation Tab Switching Logic
     const navItems = document.querySelectorAll('.nav-item');
     const viewPanes = document.querySelectorAll('.view-pane');
@@ -219,7 +147,7 @@ function resolveReportLocation(text) {
 // ================================================================
 
 // Current ratings state
-let _feedbackRatings = { safety: 0, smoothness: 0 };
+let _feedbackRatings = { overall: 0 };
 
 const _scoreLabels = {
     0: '尚未評分',
@@ -239,8 +167,9 @@ function showFeedbackModal() {
     if (!modal) return;
 
     // Reset ratings
-    _feedbackRatings = { safety: 0, smoothness: 0 };
+    _feedbackRatings = { overall: 0 };
     _resetStars();
+    _resetToStageOne();
 
     modal.style.display = 'flex';
     console.log('📋 Feedback modal shown');
@@ -265,16 +194,11 @@ function _resetStars() {
         star.classList.remove('active', 'hover-preview');
     });
 
-    const safetyText = document.getElementById('safety-score-text');
-    const smoothnessText = document.getElementById('smoothness-score-text');
+    const overallText = document.getElementById('overall-score-text');
 
-    if (safetyText) {
-        safetyText.textContent = _scoreLabels[0];
-        safetyText.classList.remove('scored');
-    }
-    if (smoothnessText) {
-        smoothnessText.textContent = _scoreLabels[0];
-        smoothnessText.classList.remove('scored');
+    if (overallText) {
+        overallText.textContent = _scoreLabels[0];
+        overallText.classList.remove('scored');
     }
 }
 
@@ -304,6 +228,43 @@ function _setStars(dimension, value) {
             textEl.classList.remove('scored');
         }
     }
+}
+
+/**
+ * Render the route's road names as a checkable "which were bad?" list.
+ */
+function _renderRoadChecklist(roadNames) {
+  const list = document.getElementById('feedback-road-list');
+  if (!list) return;
+  list.innerHTML = '';
+  roadNames.forEach((name, i) => {
+    const id = `bad-road-${i}`;
+    const label = document.createElement('label');
+    label.className = 'feedback-road-item';
+    label.innerHTML = `<input type="checkbox" value="${name}" id="${id}"><span>${name}</span>`;
+    list.appendChild(label);
+  });
+}
+
+function _getCheckedBadRoads() {
+  return Array.from(document.querySelectorAll('#feedback-road-list input:checked'))
+    .map(el => el.value);
+}
+
+function _showRoadChecklist(show) {
+  const box = document.getElementById('feedback-road-checklist');
+  if (box) box.style.display = show ? 'block' : 'none';
+}
+
+/**
+ * Collapse the submit flow back to stage 1 (checklist hidden, button label
+ * reset). Used both when the modal first opens and whenever a star rating
+ * changes after the checklist was already shown for a stale rating.
+ */
+function _resetToStageOne() {
+  _showRoadChecklist(false);
+  const submitBtn = document.getElementById('feedback-submit-btn');
+  if (submitBtn) submitBtn.textContent = '送出回饋';
 }
 
 /**
@@ -378,6 +339,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const value = parseInt(star.dataset.value);
                 _feedbackRatings[dimension] = value;
                 _setStars(dimension, value);
+                // Changing the rating invalidates any checklist already shown for
+                // the previous rating (stage 2) — collapse back to stage 1 so the
+                // next submit click re-evaluates the new star count from scratch.
+                _resetToStageOne();
             });
 
             // Hover preview
@@ -403,38 +368,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('feedback-submit-btn');
     if (submitBtn) {
         submitBtn.addEventListener('click', async () => {
-            if (_feedbackRatings.safety === 0 || _feedbackRatings.smoothness === 0) {
-                alert('請為安全性和順暢度都進行評分！');
+            const planner = window._routePlannerRef;
+            // Full-marks gate: 5 stars = whole route is "all good" (every road
+            // votes 1); fewer stars opens the checklist to flag the bad roads.
+            const stars = _feedbackRatings.overall;
+            // 第一次按：未滿星且尚未顯示清單 → 展開「哪幾條路不好」
+            const checklistVisible =
+                document.getElementById('feedback-road-checklist').style.display !== 'none';
+
+            if (stars === 0) {
+                alert('請先點選星數！');
                 return;
             }
 
-            // Disable button to prevent double-submit
+            if (stars < 5 && !checklistVisible) {
+                const roads = planner ? planner.getRouteRoadNames() : [];
+                if (roads.length === 0) {
+                    // 無可辨識路名 → 無法逐路投票，直接結束
+                    hideFeedbackModal();
+                    if (planner) await planner.refreshRoadScores();
+                    showFeedbackToast('✅ 感謝您的回饋！');
+                    return;
+                }
+                _renderRoadChecklist(roads);
+                _showRoadChecklist(true);
+                submitBtn.textContent = '確認送出';
+                return;
+            }
+
             submitBtn.disabled = true;
             submitBtn.textContent = '送出中...';
-
             try {
-                // Save via the live RoutePlanner (set on window by main.js) so the route's
-                // path is attached; fall back to a bare feedback doc if it's unavailable.
-                if (window._routePlannerRef) {
-                    await window._routePlannerRef.saveFeedbackToFirebase(
-                        _feedbackRatings.safety,
-                        _feedbackRatings.smoothness
-                    );
-                } else {
-                    console.warn('No routePlanner reference found, saving directly to Firebase');
-                    await feedbackDB.saveFeedback({
-                        safetyScore: _feedbackRatings.safety,
-                        smoothnessScore: _feedbackRatings.smoothness,
-                        averageScore: (_feedbackRatings.safety + _feedbackRatings.smoothness) / 2,
-                        steps: [],
-                        overviewPath: []
-                    });
+                const roads = planner ? planner.getRouteRoadNames() : [];
+                const bad = stars < 5 ? new Set(_getCheckedBadRoads()) : new Set();
+                const votes = {};
+                roads.forEach(name => { votes[name] = bad.has(name) ? 0 : 1; });
+
+                if (Object.keys(votes).length > 0) {
+                    await roadScoreDB.submitVotes(votes);
                 }
+                if (planner) await planner.refreshRoadScores();
 
                 hideFeedbackModal();
                 showFeedbackToast('✅ 感謝您的回饋！');
             } catch (error) {
-                console.error('Failed to save feedback:', error);
+                console.error('Failed to save road votes:', error);
                 alert('回饋送出失敗，請稍後再試。');
             } finally {
                 submitBtn.disabled = false;
