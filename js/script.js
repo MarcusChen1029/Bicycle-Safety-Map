@@ -1,76 +1,4 @@
-// Function to update progress bars and scores based on an array of values
-function updateStats(stats) {
-    // Select all stats items
-    const statItems = document.querySelectorAll('.stats-item');
-
-    // Loop through each stat item
-    statItems.forEach((item, index) => {
-        // Ensure we have data for this item
-        if (index < stats.length) {
-            const scoreElement = item.querySelector('.score');
-            const progressFill = item.querySelector('.progress-fill');
-            const value = stats[index];
-
-            // Update text score
-            if (scoreElement) {
-                scoreElement.textContent = value;
-            }
-
-            // Update progress bar width
-            if (progressFill) {
-                // Ensure value is between 0 and 100
-                const widthValue = Math.min(Math.max(value, 0), 100);
-                progressFill.style.width = widthValue + '%';
-
-                // Optional: Change color based on score (low score = red, high = green)
-                if (widthValue < 60) {
-                    progressFill.style.backgroundColor = '#dc3545'; // Red
-                } else if (widthValue < 80) {
-                    progressFill.style.backgroundColor = '#ffc107'; // Yellow
-                } else {
-                    progressFill.style.backgroundColor = '#28a745'; // Green
-                }
-            }
-        }
-    });
-}
-
-function updateLevel(array) {
-    let sum = 0;
-    array.forEach(item => {
-        sum += item;
-    });
-    if (array.length > 0) {
-        const average = sum / array.length;
-        if (average > 85) {
-            document.querySelector('.level').textContent = "A";
-            document.querySelector('.safety-level').style.backgroundColor = "#28a745";
-        } else if (average > 70) {
-            document.querySelector('.level').textContent = "B";
-            document.querySelector('.safety-level').style.backgroundColor = "#daff07ff";
-        } else if (average > 55) {
-            document.querySelector('.level').textContent = "C";
-            document.querySelector('.safety-level').style.backgroundColor = "#dc8e35ff";
-        } else if (average > 40) {
-            document.querySelector('.level').textContent = "D";
-            document.querySelector('.safety-level').style.backgroundColor = "#ff0000ff";
-        } else {
-            document.querySelector('.level').textContent = "E";
-            document.querySelector('.safety-level').style.backgroundColor = "#000000ff";
-        }
-    }
-}
-// Example: Initialize with some sample data when page loads
 document.addEventListener('DOMContentLoaded', () => {
-    // Sample scores: [Infrastructure, Risk, Accidents, Opinions]
-    const sampleScores = [100, 100, 90, 90];
-
-    // Call the function
-    updateStats(sampleScores);
-    updateLevel(sampleScores);
-    // Also set the header info for demo
-    document.querySelector('.header').textContent = "Taipei Main Station";
-
     // Navigation Tab Switching Logic
     const navItems = document.querySelectorAll('.nav-item');
     const viewPanes = document.querySelectorAll('.view-pane');
@@ -241,10 +169,7 @@ function showFeedbackModal() {
     // Reset ratings
     _feedbackRatings = { overall: 0 };
     _resetStars();
-    _showRoadChecklist(false);
-
-    const submitBtn = document.getElementById('feedback-submit-btn');
-    if (submitBtn) submitBtn.textContent = '送出回饋';
+    _resetToStageOne();
 
     modal.style.display = 'flex';
     console.log('📋 Feedback modal shown');
@@ -332,6 +257,17 @@ function _showRoadChecklist(show) {
 }
 
 /**
+ * Collapse the submit flow back to stage 1 (checklist hidden, button label
+ * reset). Used both when the modal first opens and whenever a star rating
+ * changes after the checklist was already shown for a stale rating.
+ */
+function _resetToStageOne() {
+  _showRoadChecklist(false);
+  const submitBtn = document.getElementById('feedback-submit-btn');
+  if (submitBtn) submitBtn.textContent = '送出回饋';
+}
+
+/**
  * Update the "民眾意見" (Public Opinion) progress bar
  * This targets the 4th stats-item (index 3) in each .stats container
  * @param {number} score - 0-100 scale
@@ -403,6 +339,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const value = parseInt(star.dataset.value);
                 _feedbackRatings[dimension] = value;
                 _setStars(dimension, value);
+                // Changing the rating invalidates any checklist already shown for
+                // the previous rating (stage 2) — collapse back to stage 1 so the
+                // next submit click re-evaluates the new star count from scratch.
+                _resetToStageOne();
             });
 
             // Hover preview

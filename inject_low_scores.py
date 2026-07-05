@@ -3,17 +3,29 @@
 目標路段：忠孝東路（國父紀念館 → 台北車站方向）
 用途：測試 routePlanner 是否會避開低分路段
 測試路線：國父紀念館 → 台北車站（正常會走忠孝東路，注入後應改走市民大道或仁愛路）
+
+⚠️ 危險：本腳本會對「正式」 Firebase 專案寫入假資料。
+預設為 dry-run（只印出將會寫入的內容，不會呼叫 Firestore）。
+真的要寫入請加 --apply，並在提示時輸入 yes 確認（或加 --yes 跳過提示）。
 """
 
-import requests
-import json
+import argparse
 import random
+import sys
 from datetime import datetime, timezone
 
+import requests
+
+# Windows 主控台預設編碼（cp950）印不出 emoji，這裡強制用 UTF-8 輸出避免炸掉
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 # Firebase 設定 (must match js/firebaseConfig.js)
-PROJECT_ID = "bycyclesafetymap"
+DEFAULT_PROJECT_ID = "bycyclesafetymap"
 API_KEY = "AIzaSyCe3E6azBZ2NGXTnROpt1gsUKUtKuq6L1Q"
-FIRESTORE_URL = f"https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents/bike_map_opinions"
 
 # 忠孝東路座標點（國父紀念館 → 台北車站）
 # 這是這段路線最直接的路徑
@@ -77,26 +89,53 @@ def make_firestore_doc(safety_score, smoothness_score, points):
     }
 
 
-def inject_feedback(count=30):
-    """注入 N 筆低分回饋到 Firestore"""
-    print(f"🚀 準備注入 {count} 筆低分數據到 Firestore...")
-    print(f"📍 目標路段：忠孝東路（國父紀念館 → 台北車站）")
-    print(f"🔗 Firestore: {FIRESTORE_URL}")
-    print()
+def inject_feedback(count=30, project_id=DEFAULT_PROJECT_ID, apply=False, skip_confirm=False):
+    """注入 N 筆低分回饋到 Firestore（預設 dry-run，不會真的寫入）"""
+    firestore_url = (
+        f"https://firestore.googleapis.com/v1/projects/{project_id}"
+        f"/databases/(default)/documents/bike_map_opinions"
+    )
 
-    success = 0
-    fail = 0
-
+    # 先產生這次會寫入的所有文件內容，dry-run 與 apply 共用同一份資料
+    docs = []
     for i in range(count):
         # 隨機低分：safety 1-2, smoothness 1-2
         safety = random.choice([1, 1, 1, 2])
         smoothness = random.choice([1, 1, 2, 2])
+        docs.append((safety, smoothness, make_firestore_doc(safety, smoothness, ZHONGXIAO_ROAD_POINTS)))
 
-        doc = make_firestore_doc(safety, smoothness, ZHONGXIAO_ROAD_POINTS)
+    if not apply:
+        print("🧪 DRY-RUN（預設模式，不會寫入 Firestore，也不會發出任何網路請求）")
+        print(f"🎯 目標專案：{project_id}")
+        print(f"🔗 Firestore collection: bike_map_opinions")
+        print(f"📍 目標路段：忠孝東路（國父紀念館 → 台北車站）")
+        print(f"📦 將會寫入 {count} 筆文件（尚未寫入）：")
+        for i, (safety, smoothness, doc) in enumerate(docs):
+            avg = doc["fields"]["averageScore"]["doubleValue"]
+            print(f"  [{i+1}/{count}] safety={safety}, smooth={smoothness}, avg={avg}")
+        print()
+        print("👉 這只是預覽。真的要寫入請加上 --apply（會要求輸入 yes 確認）。")
+        return
 
+    print(f"🚀 準備注入 {count} 筆低分數據到 Firestore...")
+    print(f"⚠️  這會對「正式」 Firebase 專案寫入資料：{project_id}")
+    print(f"📍 目標路段：忠孝東路（國父紀念館 → 台北車站）")
+    print(f"🔗 Firestore: {firestore_url}")
+    print()
+
+    if not skip_confirm:
+        answer = input(f"確定要對專案 \"{project_id}\" 寫入 {count} 筆假資料嗎？輸入 yes 以繼續：")
+        if answer.strip().lower() != "yes":
+            print("已取消，未寫入任何資料。")
+            return
+
+    success = 0
+    fail = 0
+
+    for i, (safety, smoothness, doc) in enumerate(docs):
         try:
             response = requests.post(
-                f"{FIRESTORE_URL}?key={API_KEY}",
+                f"{firestore_url}?key={API_KEY}",
                 json=doc,
                 headers={"Content-Type": "application/json"}
             )
@@ -123,5 +162,39 @@ def inject_feedback(count=30):
     print("   5. Console 應出現 'Hidden Danger Zone' 及 'Public Opinion W=-X.XX' 的 log")
 
 
+def main():
+    parser = argparse.ArgumentParser(
+        description="測試用腳本：在 Firestore 注入低分數據（預設 dry-run，不會寫入）"
+    )
+    parser.add_argument(
+        "--project", default=DEFAULT_PROJECT_ID,
+        help=f"目標 Firebase 專案 ID（預設：{DEFAULT_PROJECT_ID}）"
+    )
+    parser.add_argument(
+        "--apply", action="store_true",
+        help="真的執行寫入。不加這個參數只會 dry-run 預覽。"
+    )
+    parser.add_argument(
+        "--yes", action="store_true",
+        help="搭配 --apply 使用，跳過互動式 yes 確認（供自動化腳本使用）"
+    )
+    parser.add_argument(
+        "--count", type=int, default=30,
+        help="要注入的文件數量（預設 30）"
+    )
+    args = parser.parse_args()
+
+    if args.yes and not args.apply:
+        print("錯誤：--yes 必須搭配 --apply 使用。", file=sys.stderr)
+        sys.exit(1)
+
+    inject_feedback(
+        count=args.count,
+        project_id=args.project,
+        apply=args.apply,
+        skip_confirm=args.yes,
+    )
+
+
 if __name__ == "__main__":
-    inject_feedback(30)
+    main()
