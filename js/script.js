@@ -241,10 +241,7 @@ function showFeedbackModal() {
     // Reset ratings
     _feedbackRatings = { overall: 0 };
     _resetStars();
-    _showRoadChecklist(false);
-
-    const submitBtn = document.getElementById('feedback-submit-btn');
-    if (submitBtn) submitBtn.textContent = '送出回饋';
+    _resetToStageOne();
 
     modal.style.display = 'flex';
     console.log('📋 Feedback modal shown');
@@ -332,6 +329,17 @@ function _showRoadChecklist(show) {
 }
 
 /**
+ * Collapse the submit flow back to stage 1 (checklist hidden, button label
+ * reset). Used both when the modal first opens and whenever a star rating
+ * changes after the checklist was already shown for a stale rating.
+ */
+function _resetToStageOne() {
+  _showRoadChecklist(false);
+  const submitBtn = document.getElementById('feedback-submit-btn');
+  if (submitBtn) submitBtn.textContent = '送出回饋';
+}
+
+/**
  * Update the "民眾意見" (Public Opinion) progress bar
  * This targets the 4th stats-item (index 3) in each .stats container
  * @param {number} score - 0-100 scale
@@ -403,6 +411,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const value = parseInt(star.dataset.value);
                 _feedbackRatings[dimension] = value;
                 _setStars(dimension, value);
+                // Changing the rating invalidates any checklist already shown for
+                // the previous rating (stage 2) — collapse back to stage 1 so the
+                // next submit click re-evaluates the new star count from scratch.
+                _resetToStageOne();
             });
 
             // Hover preview
