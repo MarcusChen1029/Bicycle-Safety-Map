@@ -374,7 +374,10 @@ class RoutePlanner {
 
             // 友善等級 + 四項統計：只針對「最終選定」的這一條路線計算與渲染
             // (origin/destination here are the post-YouBike-snap values actually routed)
-            this._renderFriendlinessStats(this.lastRoute, origin, destination, routeLeg.end_address || destination);
+            const headerText = this._arrivalRoadName(this.lastRoute)
+                || this._trimAddress(routeLeg.end_address)
+                || destination;
+            this._renderFriendlinessStats(this.lastRoute, origin, destination, headerText);
 
             // Show start navigation button
             const navBtn = document.getElementById('start-navigation-btn');
@@ -691,6 +694,37 @@ class RoutePlanner {
         const points = (route.overview_path && route.overview_path.length > 0) ? route.overview_path : [];
         if (points.length === 0) return false;
         return points.some(pt => this._isNearAnyStation(pt, stations, radiusM));
+    }
+
+    /**
+     * Road name the route ARRIVES on (= the road the user clicked), parsed
+     * from the last parsable step instruction. One road → one name, wherever
+     * along it the user clicks; section suffixes are already stripped by
+     * parseRoadName.
+     */
+    _arrivalRoadName(route) {
+        if (!route || !route.legs || !route.legs.length) return null;
+        const steps = route.legs[route.legs.length - 1].steps || [];
+        for (let i = steps.length - 1; i >= 0; i--) {
+            const name = parseRoadName(steps[i].instructions);
+            if (name) return name;
+        }
+        return null;
+    }
+
+    /**
+     * Fallback header: strip postal code / country / district prefix and the
+     * trailing house number from a geocoded address so the label stays short
+     * (e.g. "100台灣台北市中正區北平西路3號" → "北平西路").
+     */
+    _trimAddress(address) {
+        if (!address) return null;
+        let a = String(address);
+        // Drop everything through the last 縣/市/區/鄉/鎮 that precedes more text.
+        a = a.replace(/^.*[縣市區鄉鎮](?=.)/u, '');
+        // Drop a trailing house number ("3號", "3-1號").
+        a = a.replace(/[0-9０-９\-之]+號?$/u, '').trim();
+        return a || String(address);
     }
 
     /**
