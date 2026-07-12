@@ -90,5 +90,41 @@ service cloud.firestore {
 
       allow delete: if false;
     }
+
+    // Offline-computed per-road-name accident scores (build_road_stats.py),
+    // the data foundation for a "color every road by score" map feature.
+    // Docs are produced by a batch pipeline (Overpass road geometry x
+    // data/accidents.json), not by end users, but — same as road_scores —
+    // this app has no Firebase Auth, so there is no server-side/auth-based
+    // way to gate writes to "only the pipeline". This validates SHAPE only:
+    // a malicious client could still forge a validly-shaped document (e.g.
+    // fake out a road's score). True closure needs Firebase Auth + Cloud
+    // Functions, out of scope here (same honest limitation as road_scores).
+    // Doc id = roadName with '/' replaced by '_' (js/roadScoreDB.js
+    // convention); full field set matches build_road_stats.py's output
+    // exactly (data/road_stats.json is the same data, as a static fallback).
+    match /road_stats/{docId} {
+      allow read: if true;
+
+      function isValidRoadStats(data) {
+        return data.keys().hasOnly(
+          ['roadName', 'accidentCount', 'weightedCount', 'roadKm', 'accidentScore', 'updatedAt']
+        ) &&
+        data.roadName is string &&
+        data.roadName.size() > 0 && data.roadName.size() < 100 &&
+        data.accidentCount is int && data.accidentCount >= 0 &&
+        data.weightedCount is number && data.weightedCount >= 0 &&
+        data.roadKm is number && data.roadKm > 0 &&
+        data.accidentScore is int &&
+        data.accidentScore >= 0 && data.accidentScore <= 100 &&
+        data.updatedAt is string;
+      }
+
+      allow create, update: if
+        docId.size() > 0 && docId.size() < 100 &&
+        isValidRoadStats(request.resource.data);
+
+      allow delete: if false;
+    }
   }
 }
