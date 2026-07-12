@@ -325,12 +325,12 @@ class BikeMapApp {
 
           // Auto-plan from the current (GPS/simulator) position so the
           // details panel fills with a real evaluation on every map click.
-          // Without a known position, the panel keeps its "--" placeholders.
-          if (this.currentPosition) {
-            const origin = `${this.currentPosition.lat}, ${this.currentPosition.lng}`;
-            const destination = `${e.latLng.lat()}, ${e.latLng.lng()}`;
-            this.routePlanner.planRoute(origin, destination);
-          }
+          // With no position (GPS denied, simulator off) fall back to the
+          // app's default position (台北車站) so a click always evaluates.
+          const pos = this.currentPosition || { lat: 25.0478, lng: 121.5170 };
+          const origin = `${pos.lat}, ${pos.lng}`;
+          const destination = `${e.latLng.lat()}, ${e.latLng.lng()}`;
+          this.routePlanner.planRoute(origin, destination);
         }
       });
     }
