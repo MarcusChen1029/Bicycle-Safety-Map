@@ -268,39 +268,88 @@ function _resetToStageOne() {
 }
 
 /**
+ * Update a single stats-item's score text + progress-fill width/color.
+ * Shared by updatePublicOpinionStat and updateFriendlinessBars so every
+ * bar uses the same color banding (<60 red, <80 yellow, else green).
+ * @param {number} index - 0=基礎設施, 1=交通環境風險, 2=歷史事故, 3=民眾意見
+ * @param {number} score - 0-100 scale
+ */
+function _updateStatsBarAt(index, score) {
+    const statsContainers = document.querySelectorAll('.stats');
+
+    statsContainers.forEach(container => {
+        const statItems = container.querySelectorAll('.stats-item');
+        if (statItems.length <= index) return;
+
+        const item = statItems[index];
+        const scoreEl = item.querySelector('.score');
+        const progressFill = item.querySelector('.progress-fill');
+
+        if (scoreEl) {
+            scoreEl.textContent = score;
+        }
+
+        if (progressFill) {
+            const widthValue = Math.min(Math.max(score, 0), 100);
+            progressFill.style.width = widthValue + '%';
+            progressFill.style.transition = 'width 0.6s ease, background-color 0.6s ease';
+
+            if (widthValue < 60) {
+                progressFill.style.backgroundColor = '#dc3545';
+            } else if (widthValue < 80) {
+                progressFill.style.backgroundColor = '#ffc107';
+            } else {
+                progressFill.style.backgroundColor = '#28a745';
+            }
+        }
+    });
+}
+
+/**
  * Update the "民眾意見" (Public Opinion) progress bar
  * This targets the 4th stats-item (index 3) in each .stats container
  * @param {number} score - 0-100 scale
  */
 function updatePublicOpinionStat(score) {
-    const statsContainers = document.querySelectorAll('.stats');
+    _updateStatsBarAt(3, score);
+}
 
-    statsContainers.forEach(container => {
-        const statItems = container.querySelectorAll('.stats-item');
-        // The 4th item (index 3) is "民眾意見"
-        if (statItems.length >= 4) {
-            const opinionItem = statItems[3];
-            const scoreEl = opinionItem.querySelector('.score');
-            const progressFill = opinionItem.querySelector('.progress-fill');
+/**
+ * Update 基礎設施 / 交通環境風險 / 歷史事故 / 民眾意見 together for the
+ * currently selected route. Called once when a route is planned, and again
+ * (risk + opinion held over, only risk changes) once the parallel
+ * driving-mode traffic request resolves — see RoutePlanner._refineTrafficRisk.
+ * @param {{infrastructure:number, risk:number, accident:number, opinion:number}} stats
+ */
+function updateFriendlinessBars(stats) {
+    _updateStatsBarAt(0, stats.infrastructure);
+    _updateStatsBarAt(1, stats.risk);
+    _updateStatsBarAt(2, stats.accident);
+    _updateStatsBarAt(3, stats.opinion);
+}
 
-            if (scoreEl) {
-                scoreEl.textContent = score;
-            }
+/**
+ * Set the ".header" destination label for the currently planned route.
+ * @param {string} text
+ */
+function updateRouteHeader(text) {
+    document.querySelectorAll('.header').forEach(el => {
+        el.textContent = text || '';
+    });
+}
 
-            if (progressFill) {
-                const widthValue = Math.min(Math.max(score, 0), 100);
-                progressFill.style.width = widthValue + '%';
-                progressFill.style.transition = 'width 0.6s ease, background-color 0.6s ease';
-
-                if (widthValue < 60) {
-                    progressFill.style.backgroundColor = '#dc3545';
-                } else if (widthValue < 80) {
-                    progressFill.style.backgroundColor = '#ffc107';
-                } else {
-                    progressFill.style.backgroundColor = '#28a745';
-                }
-            }
-        }
+/**
+ * Paint the 友善等級 (A-E) badge: letter into .level, background color onto
+ * .safety-level. Thresholds/colors match the removed demo updateLevel().
+ * @param {{letter:string, color:string}} grade
+ */
+function updateFriendlinessGrade(grade) {
+    if (!grade) return;
+    document.querySelectorAll('.level').forEach(el => {
+        el.textContent = grade.letter;
+    });
+    document.querySelectorAll('.safety-level').forEach(el => {
+        el.style.backgroundColor = grade.color;
     });
 }
 

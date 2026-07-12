@@ -372,6 +372,10 @@ class RoutePlanner {
             this.lastFinalResult = finalResult;
             console.log('📌 Last route stored for feedback');
 
+            // 友善等級 + 四項統計：只針對「最終選定」的這一條路線計算與渲染
+            // (origin/destination here are the post-YouBike-snap values actually routed)
+            this._renderFriendlinessStats(this.lastRoute, origin, destination, routeLeg.end_address || destination);
+
             // Show start navigation button
             const navBtn = document.getElementById('start-navigation-btn');
             if (navBtn) navBtn.style.display = 'flex';
@@ -504,10 +508,16 @@ class RoutePlanner {
     }
 
     /**
-     * Calculate safety score for a given route based on segment analysis
+     * Calculate safety score for a given route based on segment analysis.
+     * Also gathers the raw per-step inputs (rawStats) that routeStats.js
+     * turns into the four friendliness stats bars — but does NOT paint any
+     * UI itself. This runs once per CANDIDATE route during route selection;
+     * only _renderFriendlinessStats (called once, on the final SELECTED
+     * route) is allowed to touch the DOM, so the bars never reflect a
+     * losing candidate.
      * @param {Object} route - Google Maps DirectionRoute object
      * @param {boolean} isShortest - Whether this route is the shortest among alternatives
-     * @returns {number} Safety score
+     * @returns {{totalScore:number, stepEvaluations:Array, rawStats:Object}}
      */
     calculateRouteScore(route, isShortest) {
         let totalScore = 0;
@@ -515,8 +525,17 @@ class RoutePlanner {
         let publicOpinionTotalScore = 0;
         let publicOpinionStepCount = 0;
 
+        // Raw aggregates for the four friendliness stats (pure math lives in routeStats.js)
+        let laneCoverageDistanceM = 0;
+        let youbikeAccessDistanceM = 0;
+        let totalDistanceM = 0;
+        let maneuverCount = 0;
+        const matchedAccidents = [];
+        const classIndexSteps = [];
+
         const accidents = (this.accidentLayer && this.accidentLayer.data) ? this.accidentLayer.data : [];
         const bikeLanesPolys = (this.bikeLaneLayer && this.bikeLaneLayer.polylines) ? this.bikeLaneLayer.polylines : [];
+        const stations = (this.youbikeLayer && this.youbikeLayer.allStations) ? this.youbikeLayer.allStations : [];
         const bounds = route.bounds;
 
         const relevantAccidents = accidents.filter(acc => bounds.contains(acc.position));
@@ -534,7 +553,13 @@ class RoutePlanner {
 
                 const stepPath = step.path;
                 let stepPolyline = new google.maps.Polyline({ path: stepPath });
+                const stepDistM = step.distance ? step.distance.value : 0;
+                totalDistanceM += stepDistM;
 
+                // TIGHTENED bike-lane test (was tolerance 0.0005 / any-of-3 points):
+                // tolerance 0.00025 (~25m) and require >=2 of the 3 sample points to
+                // actually land on a lane. This also tightens the existing "+1" step
+                // bonus below — intended, see commit message.
                 let hasBikeLane = false;
                 if (bikeLanesPolys.length > 0) {
                     const samplePoints = [step.start_location, step.end_location];
@@ -542,18 +567,32 @@ class RoutePlanner {
                     if (stepPath[midIndex]) samplePoints.push(stepPath[midIndex]);
 
                     hasBikeLane = bikeLanesPolys.some(poly => {
-                        return samplePoints.some(pt => google.maps.geometry.poly.isLocationOnEdge(pt, poly, 0.0005));
+                        const hitCount = samplePoints.filter(pt =>
+                            google.maps.geometry.poly.isLocationOnEdge(pt, poly, 0.00025)
+                        ).length;
+                        return hitCount >= 2;
                     });
                 }
                 if (hasBikeLane) {
                     stepScore += 1;
                     reasons.push('Bike lane (+1)');
+                    laneCoverageDistanceM += stepDistM;
+                }
+
+                // 基礎設施: YouBike access — start or end point within 350m of any station
+                if (stations.length > 0) {
+                    const nearStart = this._isNearAnyStation(step.start_location, stations, 350);
+                    const nearEnd = this._isNearAnyStation(step.end_location, stations, 350);
+                    if (nearStart || nearEnd) {
+                        youbikeAccessDistanceM += stepDistM;
+                    }
                 }
 
                 let accidentCount = 0;
                 relevantAccidents.forEach(acc => {
                     if (google.maps.geometry.poly.isLocationOnEdge(acc.position, stepPolyline, 0.0003)) {
                         accidentCount++;
+                        matchedAccidents.push(acc);
                     }
                 });
 
@@ -574,8 +613,14 @@ class RoutePlanner {
 
                 // ========================================================
                 // 民眾意見 (Public Opinion) — 路名 0-1 分數
+                // 交通環境風險 — 路名 suffix (classIdx) + maneuver 計數 (junctionIdx)
                 // ========================================================
                 const roadName = parseRoadName(step.instructions);
+                classIndexSteps.push({ roadName, distanceM: stepDistM });
+                if (step.maneuver) {
+                    maneuverCount++;
+                }
+
                 if (roadName) {
                     const rec = this._roadScores.get(roadName);
                     if (rec && rec.count > 0) {
@@ -598,25 +643,142 @@ class RoutePlanner {
             });
         });
 
-        // Update Public Opinion stats bar
-        const opinionBarScore = this._computePublicOpinionBarScore(publicOpinionTotalScore, publicOpinionStepCount);
-        if (typeof updatePublicOpinionStat === 'function') {
-            updatePublicOpinionStat(opinionBarScore);
-        }
+        const rawStats = {
+            routeKm: totalDistanceM / 1000,
+            matchedAccidents,
+            laneCoverageRatio: totalDistanceM > 0 ? laneCoverageDistanceM / totalDistanceM : 0,
+            youbikeAccessRatio: totalDistanceM > 0 ? youbikeAccessDistanceM / totalDistanceM : 0,
+            hasYoubikeCoverage: this._routeHasYoubikeCoverage(route, stations, 2000),
+            classIndexSteps,
+            maneuverCount,
+            publicOpinionTotalScore,
+            publicOpinionStepCount
+        };
 
-        return { totalScore, stepEvaluations, publicOpinionScore: opinionBarScore };
+        return { totalScore, stepEvaluations, rawStats };
     }
 
     /**
-     * Compute the public opinion bar score (0-100 scale)
-     * Default: 70 (B grade) if no data exists
+     * Whether `latLng` has any YouBike station within `radiusM`.
+     * @param {google.maps.LatLng} latLng
+     * @param {Array} stations - youbikeLayer.allStations entries
+     * @param {number} radiusM
+     * @returns {boolean}
      */
-    _computePublicOpinionBarScore(totalScore, stepCount /*, totalOpinions */) {
-        if (stepCount === 0) {
-            return 70; // 無資料時的 B-grade 基準
+    _isNearAnyStation(latLng, stations, radiusM) {
+        if (!latLng || !stations || stations.length === 0) return false;
+        return stations.some(station => {
+            const lat = parseFloat(station.latitude);
+            const lng = parseFloat(station.longitude);
+            if (isNaN(lat) || isNaN(lng)) return false;
+            const dist = google.maps.geometry.spherical.computeDistanceBetween(
+                latLng, new google.maps.LatLng(lat, lng)
+            );
+            return dist <= radiusM;
+        });
+    }
+
+    /**
+     * Out-of-coverage check for 基礎設施: is ANY station within `radiusM` of
+     * ANY point along the route? Sampled along route.overview_path.
+     * @param {Object} route - Google Maps DirectionRoute object
+     * @param {Array} stations
+     * @param {number} radiusM
+     * @returns {boolean}
+     */
+    _routeHasYoubikeCoverage(route, stations, radiusM) {
+        if (!stations || stations.length === 0) return false;
+        const points = (route.overview_path && route.overview_path.length > 0) ? route.overview_path : [];
+        if (points.length === 0) return false;
+        return points.some(pt => this._isNearAnyStation(pt, stations, radiusM));
+    }
+
+    /**
+     * Compute + paint the 友善等級 grade and the four stats bars for the ONE
+     * route that was actually selected for display — never for a losing
+     * candidate evaluated during route selection. Renders immediately using
+     * the time-of-day trafficIdx fallback (routeStats.trafficIdxFallback),
+     * then kicks off a single parallel DRIVING-mode Directions request; when
+     * (if) it resolves, 交通環境風險 + 友善等級 are recomputed and repainted
+     * (progressive update — this never blocks route planning).
+     * @param {Object} route - the selected google.maps.DirectionsRoute
+     * @param {string} origin - same origin used for the route request
+     * @param {string} destination - same destination used for the route request
+     * @param {string} headerText - human-readable destination label for .header
+     */
+    _renderFriendlinessStats(route, origin, destination, headerText) {
+        if (typeof updateRouteHeader === 'function') {
+            updateRouteHeader(headerText);
         }
-        const avg = totalScore / stepCount; // 0-1
-        return Math.round(avg * 100);
+
+        const evalResult = this.calculateRouteScore(route, false);
+        const rs = evalResult.rawStats;
+
+        const accidentScore = computeAccidentScore(rs.matchedAccidents, rs.routeKm);
+        const infraScore = computeInfrastructureScore(rs.laneCoverageRatio, rs.youbikeAccessRatio, rs.hasYoubikeCoverage);
+        const classIdx = computeClassIndex(rs.classIndexSteps);
+        const junctionIdx = computeJunctionIndex(rs.maneuverCount, rs.routeKm);
+        const opinion = computeOpinionScore(rs.publicOpinionTotalScore, rs.publicOpinionStepCount);
+
+        const baseScores = { accident: accidentScore, infrastructure: infraScore, opinion: opinion.score };
+
+        const fallbackTrafficIdx = trafficIdxFallback(new Date());
+        const fallbackRisk = computeRiskScore(classIdx, junctionIdx, fallbackTrafficIdx);
+
+        this._paintFriendlinessStats(Object.assign({}, baseScores, { risk: fallbackRisk }), opinion.hasData);
+
+        // Progressive refine: exactly ONE parallel driving-mode request per route-planning action.
+        this._refineTrafficRisk(origin, destination, classIdx, junctionIdx, baseScores, opinion.hasData);
+    }
+
+    /**
+     * Paint the four bars + overall grade from a finished {accident, risk,
+     * infrastructure, opinion} score set.
+     */
+    _paintFriendlinessStats(scores, opinionHasData) {
+        const grade = computeOverallGrade(scores, opinionHasData);
+        if (typeof updateFriendlinessBars === 'function') {
+            updateFriendlinessBars(scores);
+        }
+        if (typeof updateFriendlinessGrade === 'function') {
+            updateFriendlinessGrade(grade);
+        }
+    }
+
+    /**
+     * Fire a single parallel DRIVING-mode Directions request (with live
+     * traffic) for the same origin/destination as the planned bike route,
+     * purely to read its congestion ratio (duration_in_traffic / duration)
+     * as a proxy for 交通環境風險's trafficIdx. On any failure (or if the
+     * API doesn't return duration_in_traffic), the time-of-day fallback
+     * already painted by _renderFriendlinessStats is left standing.
+     * Implemented per Google Maps Directions API docs — not exercised
+     * against a live key in this environment.
+     */
+    async _refineTrafficRisk(origin, destination, classIdx, junctionIdx, baseScores, opinionHasData) {
+        try {
+            const drivingResult = await this.calculateRoute({
+                origin,
+                destination,
+                travelMode: google.maps.TravelMode.DRIVING,
+                drivingOptions: {
+                    departureTime: new Date(),
+                    trafficModel: 'bestguess'
+                }
+            });
+
+            const leg = drivingResult.routes[0].legs[0];
+            if (!leg.duration_in_traffic || !leg.duration) return; // no live traffic data available
+
+            const ratio = leg.duration_in_traffic.value / leg.duration.value;
+            const trafficIdx = computeTrafficIndex(ratio);
+            const risk = computeRiskScore(classIdx, junctionIdx, trafficIdx);
+
+            console.log(`🚦 Live traffic ratio r=${ratio.toFixed(2)} → 交通環境風險 refined to ${risk}`);
+            this._paintFriendlinessStats(Object.assign({}, baseScores, { risk }), opinionHasData);
+        } catch (e) {
+            console.warn('⚠️ Parallel driving-mode traffic request failed; keeping time-of-day fallback for 交通環境風險', e);
+        }
     }
 
     /**
