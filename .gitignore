@@ -33,3 +33,9 @@ fatal_count.txt
 *.pdf
 *.kml
 
+# build_road_stats.py: raw Overpass API response cache. Can be tens of MB and
+# is fully reproducible by re-running the script (it re-downloads when this
+# file is absent); data/road_stats.json (the derived, committed output) is
+# what the app/map feature actually reads.
+data/osm_roads_cache.json
+
