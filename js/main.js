@@ -322,6 +322,15 @@ class BikeMapApp {
         // Check if route planner is initialized
         if (this.routePlanner) {
           this.routePlanner.setDestination(e.latLng);
+
+          // Auto-plan from the current (GPS/simulator) position so the
+          // details panel fills with a real evaluation on every map click.
+          // Without a known position, the panel keeps its "--" placeholders.
+          if (this.currentPosition) {
+            const origin = `${this.currentPosition.lat}, ${this.currentPosition.lng}`;
+            const destination = `${e.latLng.lat()}, ${e.latLng.lng()}`;
+            this.routePlanner.planRoute(origin, destination);
+          }
         }
       });
     }

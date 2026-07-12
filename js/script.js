@@ -493,6 +493,4 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Initialize public opinion bar with default score (70 = B grade)
-    updatePublicOpinionStat(70);
 });
