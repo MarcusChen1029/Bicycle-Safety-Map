@@ -1,5 +1,3 @@
-const ROAD_OPINION_K = 1; // 路名民眾分數權重（可微調）
-
 class RoutePlanner {
     constructor(map, accidentLayer, youbikeLayer, bikeLaneLayer) {
         this.map = map;
@@ -409,65 +407,75 @@ class RoutePlanner {
                 let maxScore = analysis.maxScore;
 
                 if (analysis.hasDangerousSteps) {
-                    console.log('⚠️ Dangerous segments detected in the best initial route. Attempting to find a safer detour...');
+                    if (analysis.anyRouteWithoutDanger) {
+                        // A Pass-1 alternative that Google already offered has zero
+                        // dangerous steps — no need to spend extra Directions API
+                        // calls forcing a detour via artificial waypoints.
+                        console.log('✅ [Pass 2] Skipped — a Pass-1 alternative with zero dangerous steps already exists among the initial candidates.');
+                    } else {
+                        console.log('⚠️ Dangerous segments detected in every initial candidate. Attempting to find a safer detour...');
 
-                    // Use the route's actual origin & destination to calculate waypoint
-                    // This avoids loops caused by placing waypoints near dangerous steps close to start/end
-                    const bestRoute = result.routes[analysis.bestRouteIndex];
-                    const routeOrigin = bestRoute.legs[0].start_location;
-                    const routeDestination = bestRoute.legs[bestRoute.legs.length - 1].end_location;
+                        // Place detour waypoints at the midpoint of the DANGEROUS STEP
+                        // itself (not the whole-journey midpoint) — a journey-midpoint
+                        // detour is useless when the dangerous segment sits near an
+                        // endpoint, since the perpendicular offset lands nowhere near it.
+                        const dangerousStep = analysis.dangerousStep;
+                        const stepPath = dangerousStep.path;
+                        const stepMidpoint = (stepPath && stepPath.length > 0)
+                            ? stepPath[Math.floor(stepPath.length / 2)]
+                            : google.maps.geometry.spherical.interpolate(dangerousStep.start_location, dangerousStep.end_location, 0.5);
 
-                    // Midpoint of the overall journey (not the dangerous step)
-                    const routeMidpoint = new google.maps.LatLng(
-                        (routeOrigin.lat() + routeDestination.lat()) / 2,
-                        (routeOrigin.lng() + routeDestination.lng()) / 2
-                    );
+                        // Local heading of the dangerous step (start -> end), not the overall journey heading
+                        const stepHeading = google.maps.geometry.spherical.computeHeading(
+                            dangerousStep.start_location, dangerousStep.end_location
+                        );
 
-                    // Direction from origin to destination
-                    const routeHeading = google.maps.geometry.spherical.computeHeading(routeOrigin, routeDestination);
+                        console.log(`📐 Dangerous step heading: ${stepHeading.toFixed(0)}°, placing waypoints perpendicular at its midpoint`);
 
-                    console.log(`📐 Route heading: ${routeHeading.toFixed(0)}°, placing waypoints perpendicular at route midpoint`);
+                        // Try multiple detour distances perpendicular to the dangerous step's local direction
+                        const detourDistances = [500, 1000];
 
-                    // Try multiple detour distances perpendicular to overall travel direction
-                    const detourDistances = [500, 1000];
+                        try {
+                            const detourPromises = [];
+                            const detourLabels = [];
+                            for (const dist of detourDistances) {
+                                // Offset perpendicular to the step's local heading (left = heading-90, right = heading+90)
+                                const dLeft = google.maps.geometry.spherical.computeOffset(stepMidpoint, dist, stepHeading - 90);
+                                const dRight = google.maps.geometry.spherical.computeOffset(stepMidpoint, dist, stepHeading + 90);
+                                detourPromises.push(
+                                    this.calculateRoute({ ...request, waypoints: [{ location: dLeft, stopover: false }], provideRouteAlternatives: true }).catch(e => null),
+                                    this.calculateRoute({ ...request, waypoints: [{ location: dRight, stopover: false }], provideRouteAlternatives: true }).catch(e => null)
+                                );
+                                detourLabels.push(`Detour Left ${dist}m`, `Detour Right ${dist}m`);
+                            }
+                            const detourResults = await Promise.all(detourPromises);
 
-                    try {
-                        const detourPromises = [];
-                        const detourLabels = [];
-                        for (const dist of detourDistances) {
-                            // Offset perpendicular to the travel direction (left = heading-90, right = heading+90)
-                            const dLeft = google.maps.geometry.spherical.computeOffset(routeMidpoint, dist, routeHeading - 90);
-                            const dRight = google.maps.geometry.spherical.computeOffset(routeMidpoint, dist, routeHeading + 90);
-                            detourPromises.push(
-                                this.calculateRoute({ ...request, waypoints: [{ location: dLeft, stopover: false }], provideRouteAlternatives: true }).catch(e => null),
-                                this.calculateRoute({ ...request, waypoints: [{ location: dRight, stopover: false }], provideRouteAlternatives: true }).catch(e => null)
-                            );
-                            detourLabels.push(`Detour Left ${dist}m`, `Detour Right ${dist}m`);
+                            let allResults = [];
+                            allResults.push({ name: 'Original', result: result, analysis: analysis });
+                            detourResults.forEach((res, i) => {
+                                if (res) {
+                                    // Same shortestDistance (meters, caps candidate validity) AND
+                                    // shortestKm (keeps the length-penalty term comparable across
+                                    // Pass 1 and every Pass 2 detour analysis) as Pass 1 used.
+                                    const dAnalysis = this.analyzeRoutes(res, analysis.shortestDistance, analysis.shortestKm);
+                                    console.log(`[Pass 2: ${detourLabels[i]}] Found ${res.routes.length} routes. Max score: ${dAnalysis.maxScore.toFixed(2)}`);
+                                    allResults.push({ name: detourLabels[i], result: res, analysis: dAnalysis });
+                                }
+                            });
+
+                            let bestDetourScore = maxScore;
+                            allResults.forEach(resItem => {
+                                if (resItem.analysis.maxScore > bestDetourScore) {
+                                    bestDetourScore = resItem.analysis.maxScore;
+                                    finalResult = resItem.result;
+                                    selectedRouteIndex = resItem.analysis.bestRouteIndex;
+                                    maxScore = bestDetourScore;
+                                    console.log(`👉 Better route found via ${resItem.name} pass (Score: ${bestDetourScore.toFixed(2)})`);
+                                }
+                            });
+                        } catch (detourError) {
+                            console.error("Detour attempts failed, falling back to original", detourError);
                         }
-                        const detourResults = await Promise.all(detourPromises);
-
-                        let allResults = [];
-                        allResults.push({ name: 'Original', result: result, analysis: analysis });
-                        detourResults.forEach((res, i) => {
-                            if (res) {
-                                const dAnalysis = this.analyzeRoutes(res, analysis.shortestDistance);
-                                console.log(`[Pass 2: ${detourLabels[i]}] Found ${res.routes.length} routes. Max score: ${dAnalysis.maxScore.toFixed(2)}`);
-                                allResults.push({ name: detourLabels[i], result: res, analysis: dAnalysis });
-                            }
-                        });
-
-                        let bestDetourScore = maxScore;
-                        allResults.forEach(resItem => {
-                            if (resItem.analysis.maxScore > bestDetourScore) {
-                                bestDetourScore = resItem.analysis.maxScore;
-                                finalResult = resItem.result;
-                                selectedRouteIndex = resItem.analysis.bestRouteIndex;
-                                maxScore = bestDetourScore;
-                                console.log(`👉 Better route found via ${resItem.name} pass (Score: ${bestDetourScore.toFixed(2)})`);
-                            }
-                        });
-                    } catch (detourError) {
-                        console.error("Detour attempts failed, falling back to original", detourError);
                     }
                 }
 
@@ -610,9 +618,19 @@ class RoutePlanner {
     }
 
     /**
-     * Analyze a DirectionsResult to find the best route and identify dangerous steps
+     * Analyze a DirectionsResult to find the best route and identify dangerous steps.
+     * Selection score per candidate = computeSelectionScore(overall, routeKm, shortestKm),
+     * where `overall` is the SAME weighted-mean-of-four-bars math as the display grade
+     * (computeOverallGrade) but with 交通環境風險 computed WITHOUT the traffic term
+     * (computeSelectionRisk) since traffic can't differentiate candidates for the same
+     * O/D pair. `shortestKm` is the min routeKm across the candidates being compared in
+     * THIS call (or `globalShortestKm` when the caller wants penalties comparable across
+     * multiple analyzeRoutes() calls — see planRoute's Pass 2 detour comparisons).
+     * @param {Object} result - google.maps.DirectionsResult
+     * @param {number|null} globalShortestDistance - meters; caps candidate validity (existing behavior)
+     * @param {number|null} globalShortestKm - km; if provided, used instead of this call's own min
      */
-    analyzeRoutes(result, globalShortestDistance = null) {
+    analyzeRoutes(result, globalShortestDistance = null, globalShortestKm = null) {
         let shortestDistance = Infinity;
         result.routes.forEach(route => {
             let totalDist = 0;
@@ -627,56 +645,83 @@ class RoutePlanner {
             let totalDist = 0;
             route.legs.forEach(leg => totalDist += leg.distance.value);
             if (totalDist <= maxAllowedDistance) {
-                validRoutes.push({ route, index, isShortest: totalDist === shortestDistance });
+                validRoutes.push({ route, index });
             }
         });
 
-        if (validRoutes.length === 0) validRoutes = [{ route: result.routes[0], index: 0, isShortest: true }];
+        if (validRoutes.length === 0) validRoutes = [{ route: result.routes[0], index: 0 }];
+
+        // Gather rawStats + per-step dangerous flags for every candidate up front so
+        // shortestKm and the "does a danger-free alternative already exist" check can
+        // look across the whole comparison set, not just the eventual winner.
+        validRoutes.forEach(item => {
+            const evalResult = this.calculateRouteScore(item.route);
+            item.rawStats = evalResult.rawStats;
+            item.stepEvaluations = evalResult.stepEvaluations;
+        });
+
+        const shortestKm = (globalShortestKm != null)
+            ? globalShortestKm
+            : Math.min(...validRoutes.map(item => item.rawStats.routeKm));
 
         let maxScore = -Infinity;
         let bestRouteIndex = validRoutes[0].index;
         let bestRouteDangerousStep = null;
 
         validRoutes.forEach((item) => {
-            const evalResult = this.calculateRouteScore(item.route, item.isShortest);
-            item.route.safetyScore = evalResult.totalScore;
+            const rs = item.rawStats;
+            const accidentScore = computeAccidentScore(rs.matchedAccidents, rs.routeKm);
+            const classIdx = computeClassIndex(rs.classIndexSteps);
+            const junctionIdx = computeJunctionIndex(rs.maneuverCount, rs.routeKm);
+            const riskScore = computeSelectionRisk(classIdx, junctionIdx);
+            const infraScore = computeInfrastructureScore(rs.laneCoverageRatio, rs.youbikeAccessRatio, rs.hasYoubikeCoverage);
+            const opinion = computeOpinionScore(rs.publicOpinionTotalScore, rs.publicOpinionStepCount);
 
-            if (evalResult.totalScore > maxScore) {
-                maxScore = evalResult.totalScore;
+            const scores = { accident: accidentScore, risk: riskScore, infrastructure: infraScore, opinion: opinion.score };
+            const grade = computeOverallGrade(scores, { opinion: opinion.hasData });
+            const selectionScore = computeSelectionScore(grade.overall, rs.routeKm, shortestKm);
+
+            item.route.safetyScore = selectionScore;
+            item.isDangerous = item.stepEvaluations.some(s => s.isDangerous);
+
+            console.log(`  route ${item.index + 1}: overall=${grade.overall} km=${rs.routeKm.toFixed(2)} penalty=${(grade.overall - selectionScore).toFixed(1)} final=${selectionScore.toFixed(1)}`);
+
+            if (selectionScore > maxScore) {
+                maxScore = selectionScore;
                 bestRouteIndex = item.index;
 
-                const dangerousSteps = evalResult.stepEvaluations.filter(s => s.isDangerous);
-                if (dangerousSteps.length > 0) {
-                    bestRouteDangerousStep = dangerousSteps[0].step;
-                } else {
-                    bestRouteDangerousStep = null;
-                }
+                const dangerousSteps = item.stepEvaluations.filter(s => s.isDangerous);
+                bestRouteDangerousStep = dangerousSteps.length > 0 ? dangerousSteps[0].step : null;
             }
         });
+
+        const anyRouteWithoutDanger = validRoutes.some(item => !item.isDangerous);
 
         return {
             bestRouteIndex,
             maxScore,
             shortestDistance,
+            shortestKm,
             dangerousStep: bestRouteDangerousStep,
-            hasDangerousSteps: bestRouteDangerousStep !== null
+            hasDangerousSteps: bestRouteDangerousStep !== null,
+            anyRouteWithoutDanger
         };
     }
 
     /**
-     * Calculate safety score for a given route based on segment analysis.
-     * Also gathers the raw per-step inputs (rawStats) that routeStats.js
-     * turns into the four friendliness stats bars — but does NOT paint any
-     * UI itself. This runs once per CANDIDATE route during route selection;
-     * only _renderFriendlinessStats (called once, on the final SELECTED
-     * route) is allowed to touch the DOM, so the bars never reflect a
-     * losing candidate.
+     * Gather the raw per-step inputs (rawStats) that routeStats.js turns into
+     * the four friendliness stats bars AND the selection score, plus a
+     * per-step isDangerous flag list — but does NOT paint any UI itself and
+     * does NOT compute a final score itself (analyzeRoutes does that, once
+     * it has rawStats for every candidate and knows shortestKm across the
+     * comparison set). This runs once per CANDIDATE route during route
+     * selection; only _renderFriendlinessStats (called once, on the final
+     * SELECTED route) is allowed to touch the DOM, so the bars never reflect
+     * a losing candidate.
      * @param {Object} route - Google Maps DirectionRoute object
-     * @param {boolean} isShortest - Whether this route is the shortest among alternatives
-     * @returns {{totalScore:number, stepEvaluations:Array, rawStats:Object}}
+     * @returns {{stepEvaluations:Array<{step:Object, isDangerous:boolean}>, rawStats:Object}}
      */
-    calculateRouteScore(route, isShortest) {
-        let totalScore = 0;
+    calculateRouteScore(route) {
         let stepEvaluations = [];
         let publicOpinionTotalScore = 0;
         let publicOpinionStepCount = 0;
@@ -686,7 +731,12 @@ class RoutePlanner {
         let youbikeAccessDistanceM = 0;
         let totalDistanceM = 0;
         let maneuverCount = 0;
-        const matchedAccidents = [];
+        // Accidents are matched per-step against a per-step polyline, so an
+        // accident that sits near a step boundary can satisfy isLocationOnEdge
+        // for more than one neighboring step. Dedupe via a Set of the actual
+        // accident objects (shared references from accidentLayer.data) so a
+        // route's 歷史事故 total isn't inflated by intersection double-counting.
+        const matchedAccidentsSet = new Set();
         const classIndexSteps = [];
 
         const accidents = (this.accidentLayer && this.accidentLayer.data) ? this.accidentLayer.data : [];
@@ -697,15 +747,8 @@ class RoutePlanner {
         const relevantAccidents = accidents.filter(acc => bounds.contains(acc.position));
 
         route.legs.forEach(leg => {
-            leg.steps.forEach((step, index) => {
-                let stepScore = 0;
-                let reasons = [];
+            leg.steps.forEach((step) => {
                 let isDangerous = false;
-
-                if (isShortest) {
-                    stepScore += 1;
-                    reasons.push('Shortest (+1)');
-                }
 
                 const stepPath = step.path;
                 let stepPolyline = new google.maps.Polyline({ path: stepPath });
@@ -714,8 +757,7 @@ class RoutePlanner {
 
                 // TIGHTENED bike-lane test (was tolerance 0.0005 / any-of-3 points):
                 // tolerance 0.00025 (~25m) and require >=2 of the 3 sample points to
-                // actually land on a lane. This also tightens the existing "+1" step
-                // bonus below — intended, see commit message.
+                // actually land on a lane.
                 let hasBikeLane = false;
                 if (bikeLanesPolys.length > 0) {
                     const samplePoints = [step.start_location, step.end_location];
@@ -730,8 +772,6 @@ class RoutePlanner {
                     });
                 }
                 if (hasBikeLane) {
-                    stepScore += 1;
-                    reasons.push('Bike lane (+1)');
                     laneCoverageDistanceM += stepDistM;
                 }
 
@@ -744,22 +784,22 @@ class RoutePlanner {
                     }
                 }
 
+                // Per-step (undeduped) accident count/density still drives the
+                // isDangerous flag: a step surrounded by a lot of accidents is
+                // dangerous regardless of whether a neighboring step also
+                // touches the same accident object. Only the aggregated
+                // matchedAccidentsSet (used for scoring) needs dedup.
                 let accidentCount = 0;
                 relevantAccidents.forEach(acc => {
                     if (google.maps.geometry.poly.isLocationOnEdge(acc.position, stepPolyline, 0.0003)) {
                         accidentCount++;
-                        matchedAccidents.push(acc);
+                        matchedAccidentsSet.add(acc);
                     }
                 });
 
                 if (accidentCount > 0) {
-                    // Scale penalty proportionally: every 15 accidents = -1 point
-                    // Also factor in density (accidents per km) for fairness
                     const stepDistKm = (step.distance ? step.distance.value : 500) / 1000;
                     const density = accidentCount / Math.max(stepDistKm, 0.1); // accidents per km
-                    const accidentPenalty = -(accidentCount / 15);
-                    stepScore += accidentPenalty;
-                    reasons.push(`Accidents x${accidentCount} (${accidentPenalty.toFixed(1)}, density:${density.toFixed(0)}/km)`);
 
                     // Mark as dangerous if high density (>30/km) or high raw count (>15)
                     if (density > 30 || accidentCount > 15) {
@@ -781,9 +821,6 @@ class RoutePlanner {
                     const rec = this._roadScores.get(roadName);
                     if (rec && rec.count > 0) {
                         const s = rec.sum / rec.count; // 0-1
-                        const adj = roadScoreAdjustment(s, rec.count, ROAD_OPINION_K);
-                        stepScore += adj;
-                        reasons.push(`Road "${roadName}" ${s.toFixed(2)} (n:${rec.count}, ${adj >= 0 ? '+' : ''}${adj.toFixed(2)})`);
                         if (s < 0.5) {
                             isDangerous = true;
                         }
@@ -792,16 +829,13 @@ class RoutePlanner {
                     }
                 }
 
-                console.log(`  - Step ${index + 1}: Score = ${stepScore.toFixed(2)} [${reasons.join(', ') || 'No points'}] | Dist: ${step.distance.text}`);
-
-                stepEvaluations.push({ step, score: stepScore, reasons, accidentCount, isDangerous });
-                totalScore += stepScore;
+                stepEvaluations.push({ step, isDangerous });
             });
         });
 
         const rawStats = {
             routeKm: totalDistanceM / 1000,
-            matchedAccidents,
+            matchedAccidents: Array.from(matchedAccidentsSet),
             laneCoverageRatio: totalDistanceM > 0 ? laneCoverageDistanceM / totalDistanceM : 0,
             youbikeAccessRatio: totalDistanceM > 0 ? youbikeAccessDistanceM / totalDistanceM : 0,
             hasYoubikeCoverage: this._routeHasYoubikeCoverage(route, stations, 2000),
@@ -811,7 +845,7 @@ class RoutePlanner {
             publicOpinionStepCount
         };
 
-        return { totalScore, stepEvaluations, rawStats };
+        return { stepEvaluations, rawStats };
     }
 
     /**
@@ -898,7 +932,7 @@ class RoutePlanner {
             updateRouteHeader(headerText);
         }
 
-        const evalResult = this.calculateRouteScore(route, false);
+        const evalResult = this.calculateRouteScore(route);
         const rs = evalResult.rawStats;
 
         const accidentScore = computeAccidentScore(rs.matchedAccidents, rs.routeKm);
