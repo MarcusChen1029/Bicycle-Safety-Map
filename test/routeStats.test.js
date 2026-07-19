@@ -14,7 +14,9 @@ const {
   computePointInfraScore,
   computeOpinionScore,
   computeOverallGrade,
-  gradeForScore
+  gradeForScore,
+  computeSelectionRisk,
+  computeSelectionScore
 } = require('../js/routeStats.js');
 
 // ------------------------------------------------------------------
@@ -270,4 +272,39 @@ test('computeOverallGrade: both accident AND opinion missing (road-level click, 
   const expectedOverall = Math.round((0.30 * 60 + 0.20 * 50) / remaining);
   const result = computeOverallGrade(scores, { accident: false, opinion: false });
   assert.strictEqual(result.overall, expectedOverall);
+});
+
+// ------------------------------------------------------------------
+// 路線選擇 (selection-only score) — computeSelectionRisk, computeSelectionScore
+// ------------------------------------------------------------------
+
+test('computeSelectionRisk: boundary values match the renormalized 61.5/38.5 formula', () => {
+  assert.strictEqual(computeSelectionRisk(0, 0), 100);
+  assert.strictEqual(computeSelectionRisk(1, 1), Math.round(100 - (61.5 + 38.5)));
+  assert.strictEqual(computeSelectionRisk(1, 1), 0);
+  assert.strictEqual(computeSelectionRisk(1, 0), Math.round(100 - 61.5));
+  assert.strictEqual(computeSelectionRisk(0, 1), Math.round(100 - 38.5));
+  assert.strictEqual(computeSelectionRisk(0.5, 0.5), Math.round(100 - (30.75 + 19.25)));
+});
+
+test('computeSelectionScore: equal length -> no penalty', () => {
+  assert.strictEqual(computeSelectionScore(80, 5, 5), 80);
+  assert.strictEqual(computeSelectionScore(80, 3.2, 3.2), 80);
+});
+
+test('computeSelectionScore: +10% length costs 4 points at default k=0.4', () => {
+  const result = computeSelectionScore(80, 5.5, 5); // 5.5/5 = 1.1 -> 10% longer
+  assert.ok(Math.abs(result - 76) < 1e-9);
+});
+
+test('computeSelectionScore: shorter than shortestKm gets no bonus (penalty floors at 0)', () => {
+  // routeKm < shortestKm shouldn't normally happen (shortestKm is the min of
+  // the compared set) but must never turn into a positive bonus if it does.
+  assert.strictEqual(computeSelectionScore(80, 4, 5), 80);
+});
+
+test('computeSelectionScore: custom k scales the penalty', () => {
+  // +20% length at k=0.5 -> 0.5*100*0.2 = 10 points off
+  const result = computeSelectionScore(90, 6, 5, 0.5);
+  assert.ok(Math.abs(result - 80) < 1e-9);
 });

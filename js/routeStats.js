@@ -287,6 +287,52 @@ function computeOverallGrade(scores, availability = true) {
   return { overall: Math.round(overall), letter: grade.letter, color: grade.color };
 }
 
+// ------------------------------------------------------------------
+// 路線選擇 (Route SELECTION score) — used only by routePlanner's
+// candidate-vs-candidate comparison during route selection; never painted
+// to the UI. Traffic is deliberately excluded from the risk term here: the
+// parallel DRIVING-mode traffic probe is a single shared value for the
+// whole O/D pair, so it's (near-)identical across every candidate between
+// the same origin/destination and cannot help differentiate them — it
+// stays a display-only refinement of computeRiskScore.
+// ------------------------------------------------------------------
+
+/**
+ * Route risk WITHOUT the traffic term — the 40/25 (class/junction) pair
+ * from computeRiskScore, renormalized to sum to 100 once the 35-weight
+ * traffic term is dropped: 40/65*100 = 61.5, 25/65*100 = 38.5.
+ * Score = round(100 - (61.5*classIdx + 38.5*junctionIdx)).
+ * @param {number} classIdx - 0-1, from computeClassIndex
+ * @param {number} junctionIdx - 0-1, from computeJunctionIndex
+ * @returns {number} 0-100, higher = safer
+ */
+function computeSelectionRisk(classIdx, junctionIdx) {
+  const score = 100 - (61.5 * classIdx + 38.5 * junctionIdx);
+  return Math.round(score);
+}
+
+/**
+ * Length-penalized score for comparing candidate routes for the same trip.
+ * = overall - k*100*max(routeKm/shortestKm - 1, 0)
+ * A candidate exactly at the shortest length pays no penalty; a candidate
+ * 10% longer than the shortest candidate loses k*100*0.1 points (4 points
+ * at the default k=0.4). A candidate SHORTER than shortestKm (shouldn't
+ * normally happen since shortestKm is the min over the compared set, but
+ * can if a different globalShortestKm is passed in) gets no bonus either —
+ * the max(...,0) floors the penalty at zero.
+ * @param {number} overall - 0-100 overall friendliness score for this candidate
+ * @param {number} routeKm - this candidate's length in km
+ * @param {number} shortestKm - the shortest candidate's length in km, among
+ *   the routes being compared in this selection round
+ * @param {number} [k=0.4] - penalty steepness
+ * @returns {number} the length-penalized selection score (not clamped to 0-100)
+ */
+function computeSelectionScore(overall, routeKm, shortestKm, k = 0.4) {
+  const shortest = shortestKm > 0 ? shortestKm : (routeKm > 0 ? routeKm : 0.1);
+  const detourRatio = Math.max(routeKm / shortest - 1, 0);
+  return overall - k * 100 * detourRatio;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     severityWeight,
@@ -303,6 +349,8 @@ if (typeof module !== 'undefined' && module.exports) {
     computeOpinionScore,
     computeOverallGrade,
     gradeForScore,
+    computeSelectionRisk,
+    computeSelectionScore,
     clamp01
   };
 }
