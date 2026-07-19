@@ -389,9 +389,12 @@ def upload_to_firestore(stats, project_id, skip_confirm=False, batch_size=400):
             print("Cancelled. Nothing was written.")
             return
 
+    # NOTE: must be documents:commit, NOT documents:batchWrite — batchWrite
+    # bypasses security rules and therefore requires IAM (OAuth) auth; with an
+    # API key it always returns PERMISSION_DENIED. commit is rules-evaluated.
     base_url = (
         f"https://firestore.googleapis.com/v1/projects/{project_id}"
-        f"/databases/(default)/documents:batchWrite"
+        f"/databases/(default)/documents:commit"
     )
 
     success = 0
