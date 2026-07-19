@@ -10,6 +10,8 @@ const {
   computeTrafficIndex,
   trafficIdxFallback,
   computeRiskScore,
+  computeRoadRiskScore,
+  computePointInfraScore,
   computeOpinionScore,
   computeOverallGrade,
   gradeForScore
@@ -154,6 +156,28 @@ test('computeRiskScore matches the weighted formula', () => {
   assert.strictEqual(computeRiskScore(0.5, 0.5, 0.5), Math.round(100 - (20 + 12.5 + 17.5)));
 });
 
+test('computeRoadRiskScore (road-level, no junctionIdx) matches the 60/40 formula', () => {
+  assert.strictEqual(computeRoadRiskScore(0, 0), 100);
+  assert.strictEqual(computeRoadRiskScore(1, 1), Math.round(100 - (60 + 40)));
+  assert.strictEqual(computeRoadRiskScore(0.5, 0.5), Math.round(100 - (30 + 20)));
+  // A fast-road-class name at peak traffic scores worse than a quiet lane off-peak
+  assert.ok(computeRoadRiskScore(1.0, 0.7) < computeRoadRiskScore(0.15, 0.15));
+});
+
+// ------------------------------------------------------------------
+// 基礎設施 (road-level point infrastructure score)
+// ------------------------------------------------------------------
+
+test('computePointInfraScore: neither lane nor station nearby -> base 30', () => {
+  assert.strictEqual(computePointInfraScore(false, false), 30);
+});
+
+test('computePointInfraScore: lane-only, station-only, and both', () => {
+  assert.strictEqual(computePointInfraScore(true, false), 75);
+  assert.strictEqual(computePointInfraScore(false, true), 55);
+  assert.strictEqual(computePointInfraScore(true, true), 100);
+});
+
 // ------------------------------------------------------------------
 // 民眾意見 (opinion score)
 // ------------------------------------------------------------------
@@ -208,5 +232,42 @@ test('computeOverallGrade: opinion-excluded renormalization matches manual compu
   const remaining = 1 - 0.15; // 0.85
   const expectedOverall = Math.round((0.35 * 80 + 0.30 * 60 + 0.20 * 50) / remaining);
   const result = computeOverallGrade(scores, false);
+  assert.strictEqual(result.overall, expectedOverall);
+});
+
+// ------------------------------------------------------------------
+// 友善等級 — extended availability (object form: road-level click flow,
+// where 歷史事故 can ALSO be missing, unlike the route flow which only
+// ever loses 民眾意見).
+// ------------------------------------------------------------------
+
+test('computeOverallGrade: object-form availability with everything present matches the boolean-true default', () => {
+  const scores = { accident: 80, risk: 60, infrastructure: 50, opinion: 90 };
+  const bool = computeOverallGrade(scores, true);
+  const obj = computeOverallGrade(scores, {});
+  assert.strictEqual(obj.overall, bool.overall);
+  assert.strictEqual(obj.letter, bool.letter);
+});
+
+test('computeOverallGrade: accident missing (road-level, no road_stats entry) excluded and renormalized', () => {
+  // accident's placeholder value (0) must NOT drag the grade down once excluded
+  const scores = { accident: 0, risk: 100, infrastructure: 100, opinion: 100 };
+  const result = computeOverallGrade(scores, { accident: false });
+  assert.strictEqual(result.overall, 100);
+});
+
+test('computeOverallGrade: accident-excluded renormalization matches manual computation', () => {
+  const scores = { accident: 0, risk: 60, infrastructure: 50, opinion: 90 };
+  const remaining = 1 - 0.35; // 0.65
+  const expectedOverall = Math.round((0.30 * 60 + 0.20 * 50 + 0.15 * 90) / remaining);
+  const result = computeOverallGrade(scores, { accident: false });
+  assert.strictEqual(result.overall, expectedOverall);
+});
+
+test('computeOverallGrade: both accident AND opinion missing (road-level click, brand-new road with no votes) renormalize together', () => {
+  const scores = { accident: 0, risk: 60, infrastructure: 50, opinion: 0 };
+  const remaining = 1 - 0.35 - 0.15; // 0.50
+  const expectedOverall = Math.round((0.30 * 60 + 0.20 * 50) / remaining);
+  const result = computeOverallGrade(scores, { accident: false, opinion: false });
   assert.strictEqual(result.overall, expectedOverall);
 });

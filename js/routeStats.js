@@ -82,6 +82,21 @@ function computeInfrastructureScore(laneCoverage, youbikeAccess, hasYoubikeCover
   return Math.round(30 + 45 * lc + 25 * ya);
 }
 
+/**
+ * Road-level (single-point, no route) 基礎設施. Same base + weights as
+ * computeInfrastructureScore's full-coverage branch, but fed booleans
+ * ("is the clicked point near a lane / station?") instead of route-length
+ * coverage ratios, since a single click has no route to measure coverage
+ * along.
+ * = round(30 + 45*(laneNear?1:0) + 25*(stationNear?1:0)).
+ * @param {boolean} laneNear - clicked point is within tolerance of a bike lane
+ * @param {boolean} stationNear - a YouBike station is within 350m of the point
+ * @returns {number} 0-100
+ */
+function computePointInfraScore(laneNear, stationNear) {
+  return Math.round(30 + 45 * (laneNear ? 1 : 0) + 25 * (stationNear ? 1 : 0));
+}
+
 // ------------------------------------------------------------------
 // 交通環境風險 (Traffic environment risk)
 // ------------------------------------------------------------------
@@ -138,6 +153,21 @@ function computeJunctionIndex(maneuverCount, routeKm) {
 function computeTrafficIndex(ratio) {
   if (ratio == null || isNaN(ratio)) return 0;
   return clamp01((ratio - 1) / 0.8);
+}
+
+/**
+ * Road-level (single-click, no Directions request) 交通環境風險. Same idea as
+ * computeRiskScore but with no junctionIdx term (a single clicked road has no
+ * route of maneuvers to count) — classIdx and trafficIdx are reweighted to
+ * fill the gap (60/40 instead of 40/25/35).
+ * Score = round(100 - (60*classIdx + 40*trafficIdx)).
+ * @param {number} classIdx - 0-1, from classValueForRoadName(name)
+ * @param {number} trafficIdx - 0-1, from trafficIdxFallback(date)
+ * @returns {number} 0-100
+ */
+function computeRoadRiskScore(classIdx, trafficIdx) {
+  const score = 100 - (60 * classIdx + 40 * trafficIdx);
+  return Math.round(score);
 }
 
 /**
@@ -212,21 +242,39 @@ function gradeForScore(score) {
 
 /**
  * Weighted mean of the four 0-100 bar scores (weights: 事故 0.35, 風險 0.30,
- * 基礎設施 0.20, 民意 0.15). When the route has zero public-opinion data,
- * `opinionHasData` should be false: the opinion weight is excluded and the
- * remaining three weights are renormalized to sum to 1 (the opinion bar may
- * still separately display its 70-default — that's a UI concern, not this
- * function's).
+ * 基礎設施 0.20, 民意 0.15). Any component that is missing data has its weight
+ * excluded and the remaining weights renormalized to sum to 1 (an excluded
+ * bar may still separately display a placeholder score — that's a UI
+ * concern, not this function's).
+ *
+ * `availability` accepts two forms:
+ *   - boolean (legacy, route flow): shorthand for opinion-only availability,
+ *     i.e. `computeOverallGrade(scores, false)` === opinion missing, all
+ *     other components assumed present. Preserved for backward compatibility
+ *     with existing call sites and tests.
+ *   - object (road-level click flow, where accident data can ALSO be
+ *     missing): `{accident?, risk?, infrastructure?, opinion?}`, each
+ *     defaulting to true (present) when omitted. Any key explicitly `false`
+ *     is excluded and its weight redistributed.
  * @param {{accident:number, risk:number, infrastructure:number, opinion:number}} scores
- * @param {boolean} [opinionHasData=true]
+ * @param {boolean|{accident?:boolean, risk?:boolean, infrastructure?:boolean, opinion?:boolean}} [availability=true]
  * @returns {{overall:number, letter:string, color:string}}
  */
-function computeOverallGrade(scores, opinionHasData = true) {
+function computeOverallGrade(scores, availability = true) {
+  // Backward-compatible shorthand: a boolean means "opinionHasData".
+  const avail = (typeof availability === 'boolean') ? { opinion: availability } : (availability || {});
+
   let weights = Object.assign({}, GRADE_WEIGHTS);
-  if (!opinionHasData) {
-    const opinionW = weights.opinion;
-    delete weights.opinion;
-    const remaining = 1 - opinionW;
+  let excludedWeight = 0;
+  Object.keys(GRADE_WEIGHTS).forEach(k => {
+    if (avail[k] === false) {
+      excludedWeight += weights[k];
+      delete weights[k];
+    }
+  });
+
+  if (excludedWeight > 0) {
+    const remaining = 1 - excludedWeight;
     Object.keys(weights).forEach(k => { weights[k] = weights[k] / remaining; });
   }
 
@@ -250,6 +298,8 @@ if (typeof module !== 'undefined' && module.exports) {
     computeTrafficIndex,
     trafficIdxFallback,
     computeRiskScore,
+    computeRoadRiskScore,
+    computePointInfraScore,
     computeOpinionScore,
     computeOverallGrade,
     gradeForScore,
