@@ -87,21 +87,49 @@ class BikeMapApp {
     // Start Navigation Event
     const startNavBtn = document.getElementById('start-navigation-btn');
     if (startNavBtn) {
-      startNavBtn.addEventListener('click', () => {
-        if (this.routePlanner && this.routePlanner.lastRoute) {
+      startNavBtn.addEventListener('click', async () => {
+        if (!this.routePlanner) return;
+
+        // Road-level click only so far (no route planned yet) — run the
+        // full route pipeline now, on demand, since the user actually wants
+        // to navigate. This is the ONE place a map click can still trigger
+        // the two-Directions-request route computation.
+        if (!this.routePlanner.lastRoute) {
+          if (!this.routePlanner.pendingDestination) return; // nothing clicked yet
+
+          const originalLabel = startNavBtn.textContent;
+          startNavBtn.disabled = true;
+          startNavBtn.textContent = '規劃中…';
+
+          try {
+            const pos = this.currentPosition || { lat: 25.0478, lng: 121.5170 };
+            const origin = `${pos.lat}, ${pos.lng}`;
+            const dest = this.routePlanner.pendingDestination;
+            const destination = `${dest.lat()}, ${dest.lng()}`;
+            await this.routePlanner.planRoute(origin, destination);
+          } catch (e) {
+            console.error('開始導航：規劃路線失敗', e);
+            return; // no route -> don't enter nav mode
+          } finally {
+            startNavBtn.disabled = false;
+            startNavBtn.textContent = originalLabel;
+          }
+        }
+
+        if (this.routePlanner.lastRoute) {
           // 啟動 App 內建導航模式
           this.isNavigating = true;
           this.currentNavStepIndex = 0;
           this._minDistanceToTurn = null;
-          
+
           document.body.classList.add('nav-mode-active');
           document.getElementById('nav-banner').style.display = 'flex';
-          
+
           if (this.currentPosition && this.map) {
             this.map.setCenter(this.currentPosition);
             this.map.setZoom(18);
           }
-          
+
           this._updateNavBanner();
         }
       });
@@ -310,7 +338,9 @@ class BikeMapApp {
       });
     }
 
-    // Map Click Event for Route Planning
+    // Map Click Event — instant ROAD-LEVEL evaluation only (zero Directions
+    // requests). The full ROUTE-level pipeline (two Directions requests +
+    // heavy scoring) only runs when the user presses 開始導航.
     if (this.map) {
       this.map.addListener('click', (e) => {
         // Show details panel
@@ -322,15 +352,6 @@ class BikeMapApp {
         // Check if route planner is initialized
         if (this.routePlanner) {
           this.routePlanner.setDestination(e.latLng);
-
-          // Auto-plan from the current (GPS/simulator) position so the
-          // details panel fills with a real evaluation on every map click.
-          // With no position (GPS denied, simulator off) fall back to the
-          // app's default position (台北車站) so a click always evaluates.
-          const pos = this.currentPosition || { lat: 25.0478, lng: 121.5170 };
-          const origin = `${pos.lat}, ${pos.lng}`;
-          const destination = `${e.latLng.lat()}, ${e.latLng.lng()}`;
-          this.routePlanner.planRoute(origin, destination);
         }
       });
     }
