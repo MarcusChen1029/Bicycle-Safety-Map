@@ -678,13 +678,19 @@ class RoutePlanner {
             const opinion = computeOpinionScore(rs.publicOpinionTotalScore, rs.publicOpinionStepCount);
 
             const scores = { accident: accidentScore, risk: riskScore, infrastructure: infraScore, opinion: opinion.score };
-            const grade = computeOverallGrade(scores, { opinion: opinion.hasData });
-            const selectionScore = computeSelectionScore(grade.overall, rs.routeKm, shortestKm);
+            // Selection-only weights (accident 0.60) — the display grade keeps its own.
+            const grade = computeOverallGrade(scores, { opinion: opinion.hasData }, SELECTION_WEIGHTS);
+            // Fatal-hotspot repellent: the heatmap's blue dots are 死亡-only;
+            // repel routes from them explicitly so mass light-injury corridors
+            // can't drown them out.
+            const fatalCount = rs.matchedAccidents.filter(a => a && a.severity === '死亡').length;
+            const fatalPenalty = computeFatalPenalty(fatalCount);
+            const selectionScore = computeSelectionScore(grade.overall, rs.routeKm, shortestKm) - fatalPenalty;
 
             item.route.safetyScore = selectionScore;
             item.isDangerous = item.stepEvaluations.some(s => s.isDangerous);
 
-            console.log(`  route ${item.index + 1}: overall=${grade.overall} km=${rs.routeKm.toFixed(2)} penalty=${(grade.overall - selectionScore).toFixed(1)} final=${selectionScore.toFixed(1)}`);
+            console.log(`  route ${item.index + 1}: overall=${grade.overall} km=${rs.routeKm.toFixed(2)} lenPenalty=${(grade.overall - fatalPenalty - selectionScore).toFixed(1)} fatals=${fatalCount} (-${fatalPenalty}) final=${selectionScore.toFixed(1)}`);
 
             if (selectionScore > maxScore) {
                 maxScore = selectionScore;

@@ -260,13 +260,13 @@ function gradeForScore(score) {
  * @param {boolean|{accident?:boolean, risk?:boolean, infrastructure?:boolean, opinion?:boolean}} [availability=true]
  * @returns {{overall:number, letter:string, color:string}}
  */
-function computeOverallGrade(scores, availability = true) {
+function computeOverallGrade(scores, availability = true, baseWeights = GRADE_WEIGHTS) {
   // Backward-compatible shorthand: a boolean means "opinionHasData".
   const avail = (typeof availability === 'boolean') ? { opinion: availability } : (availability || {});
 
-  let weights = Object.assign({}, GRADE_WEIGHTS);
+  let weights = Object.assign({}, baseWeights);
   let excludedWeight = 0;
-  Object.keys(GRADE_WEIGHTS).forEach(k => {
+  Object.keys(baseWeights).forEach(k => {
     if (avail[k] === false) {
       excludedWeight += weights[k];
       delete weights[k];
@@ -324,13 +324,36 @@ function computeSelectionRisk(classIdx, junctionIdx) {
  * @param {number} routeKm - this candidate's length in km
  * @param {number} shortestKm - the shortest candidate's length in km, among
  *   the routes being compared in this selection round
- * @param {number} [k=0.4] - penalty steepness
+ * @param {number} [k=0.2] - penalty steepness
  * @returns {number} the length-penalized selection score (not clamped to 0-100)
  */
-function computeSelectionScore(overall, routeKm, shortestKm, k = 0.4) {
+function computeSelectionScore(overall, routeKm, shortestKm, k = 0.2) {
   const shortest = shortestKm > 0 ? shortestKm : (routeKm > 0 ? routeKm : 0.1);
   const detourRatio = Math.max(routeKm / shortest - 1, 0);
   return overall - k * 100 * detourRatio;
+}
+
+// Selection-only component weights: accident avoidance dominates route
+// CHOICE (0.60 vs the display grade's 0.35) because "route around the
+// accident hotspots" is the product's core promise; risk/infra/opinion
+// barely differ between urban candidates and would otherwise dilute it.
+// The DISPLAY grade keeps GRADE_WEIGHTS — what we show and what we optimize
+// are allowed to weight differently.
+const SELECTION_WEIGHTS = { accident: 0.60, risk: 0.20, infrastructure: 0.10, opinion: 0.10 };
+
+/**
+ * Extra selection penalty that makes FATAL-accident sites (the blue
+ * heatmap dots — the heatmap renders 死亡 only) actively repel routes:
+ * −8 points per fatal accident matched along the route, capped at −40.
+ * Fatals already weigh 10× inside computeAccidentScore; this term is a
+ * deliberate second, targeted repellent so a corridor's flood of light
+ * injuries can never mask a fatal hotspot.
+ * @param {number} fatalCount - deduped 死亡 accidents matched to the route
+ * @returns {number} penalty >= 0 (subtract from the selection score)
+ */
+function computeFatalPenalty(fatalCount) {
+  const n = fatalCount > 0 ? fatalCount : 0;
+  return Math.min(8 * n, 40);
 }
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -351,6 +374,8 @@ if (typeof module !== 'undefined' && module.exports) {
     gradeForScore,
     computeSelectionRisk,
     computeSelectionScore,
+    computeFatalPenalty,
+    SELECTION_WEIGHTS,
     clamp01
   };
 }

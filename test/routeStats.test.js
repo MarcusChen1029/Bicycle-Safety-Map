@@ -16,7 +16,9 @@ const {
   computeOverallGrade,
   gradeForScore,
   computeSelectionRisk,
-  computeSelectionScore
+  computeSelectionScore,
+  computeFatalPenalty,
+  SELECTION_WEIGHTS
 } = require('../js/routeStats.js');
 
 // ------------------------------------------------------------------
@@ -292,9 +294,31 @@ test('computeSelectionScore: equal length -> no penalty', () => {
   assert.strictEqual(computeSelectionScore(80, 3.2, 3.2), 80);
 });
 
-test('computeSelectionScore: +10% length costs 4 points at default k=0.4', () => {
+test('computeSelectionScore: +10% length costs 2 points at default k=0.2', () => {
   const result = computeSelectionScore(80, 5.5, 5); // 5.5/5 = 1.1 -> 10% longer
-  assert.ok(Math.abs(result - 76) < 1e-9);
+  assert.ok(Math.abs(result - 78) < 1e-9);
+});
+
+test('computeFatalPenalty: 8 points per fatal, capped at 40', () => {
+  assert.strictEqual(computeFatalPenalty(0), 0);
+  assert.strictEqual(computeFatalPenalty(1), 8);
+  assert.strictEqual(computeFatalPenalty(3), 24);
+  assert.strictEqual(computeFatalPenalty(5), 40);
+  assert.strictEqual(computeFatalPenalty(20), 40); // capped
+  assert.strictEqual(computeFatalPenalty(-1), 0);  // garbage in, zero out
+});
+
+test('computeOverallGrade: custom selection weights make accident dominate', () => {
+  // accident 0 vs 100 with all other bars fixed at 50:
+  // GRADE_WEIGHTS   (0.35): swing = 35 points
+  // SELECTION_WEIGHTS (0.60): swing = 60 points
+  const others = { risk: 50, infrastructure: 50, opinion: 50 };
+  const lowSel = computeOverallGrade({ accident: 0, ...others }, true, SELECTION_WEIGHTS).overall;
+  const highSel = computeOverallGrade({ accident: 100, ...others }, true, SELECTION_WEIGHTS).overall;
+  assert.strictEqual(highSel - lowSel, 60);
+  // Renormalization still works with custom weights (opinion excluded):
+  const noOpinion = computeOverallGrade({ accident: 100, risk: 0, infrastructure: 0 }, { opinion: false }, SELECTION_WEIGHTS).overall;
+  assert.strictEqual(noOpinion, Math.round(100 * (0.60 / 0.90)));
 });
 
 test('computeSelectionScore: shorter than shortestKm gets no bonus (penalty floors at 0)', () => {
