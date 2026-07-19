@@ -34,16 +34,19 @@ test('computeAccidentScore: no accidents -> 100 regardless of route length', () 
   assert.strictEqual(computeAccidentScore(null, 5), 100);
 });
 
-test('computeAccidentScore: known D gives the exp-decay score', () => {
+test('computeAccidentScore: known D gives the harmonic-falloff score', () => {
   // 2x 輕傷 (weight 1 each) over 1km -> D = 2/1 = 2
-  // score = round(100 * exp(-2/15))
-  const expected = Math.round(100 * Math.exp(-2 / 15));
+  // score = round(100 / (1 + 2/30))
+  const expected = Math.round(100 / (1 + 2 / 30));
   assert.strictEqual(computeAccidentScore([{ severity: '輕傷' }, { severity: '輕傷' }], 1), expected);
+  // Half-point anchor: D = 30 -> exactly 50
+  const thirty = Array.from({ length: 30 }, () => ({ severity: '輕傷' }));
+  assert.strictEqual(computeAccidentScore(thirty, 1), 50);
 });
 
 test('computeAccidentScore: severe accidents weigh far more heavily', () => {
   // 1x 死亡 (weight 10) over 2km -> D = 5
-  const expected = Math.round(100 * Math.exp(-5 / 15));
+  const expected = Math.round(100 / (1 + 5 / 30));
   assert.strictEqual(computeAccidentScore([{ severity: '死亡' }], 2), expected);
   // Sanity: a fatal accident scores much worse than light ones over the same distance
   const lightScore = computeAccidentScore([{ severity: '輕傷' }], 2);

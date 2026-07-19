@@ -34,10 +34,18 @@ function severityWeight(severity) {
   return DEFAULT_SEVERITY_WEIGHT;
 }
 
+// Harmonic falloff half-point: a road/route at D = ACCIDENT_D0 weighted
+// accidents per km scores 50. Calibrated 2026-07-19 against the real Taipei
+// per-road distribution (data/road_stats.json: p50 D≈14 → 68, p90 D≈41 → 42,
+// p99 D≈94 → 24) so scores spread instead of collapsing to 0 in the city
+// center the way the previous exp(-D/15) curve did. build_road_stats.py must
+// use the SAME curve and constant.
+const ACCIDENT_D0 = 30;
+
 /**
  * D = (Σ severity weights of accidents near the route) / routeKm.
- * Score = round(100 * exp(-D / 15)). No accidents at all → 100 regardless
- * of route length.
+ * Score = round(100 / (1 + D / ACCIDENT_D0)). No accidents at all → 100
+ * regardless of route length.
  * @param {Array<{severity?: string}>} accidents - accidents matched against the route
  * @param {number} routeKm - total route length in km
  * @returns {number} 0-100, higher = safer
@@ -48,7 +56,7 @@ function computeAccidentScore(accidents, routeKm) {
   const totalWeight = list.reduce((sum, a) => sum + severityWeight(a && a.severity), 0);
   const km = routeKm > 0 ? routeKm : 0.1; // guard divide-by-zero on a degenerate/zero-length route
   const D = totalWeight / km;
-  return Math.round(100 * Math.exp(-D / 15));
+  return Math.round(100 / (1 + D / ACCIDENT_D0));
 }
 
 // ------------------------------------------------------------------

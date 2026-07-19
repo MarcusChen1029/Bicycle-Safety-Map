@@ -11,7 +11,7 @@ Output:
 Scoring math mirrors js/routeStats.js (computeAccidentScore) exactly:
   severity weights: 死亡=10, 重傷=5, 輕傷=1, 無傷=0.3, unknown=1
   D = weightedCount / roadKm
-  accidentScore = round(100 * exp(-D / 15))
+  accidentScore = round(100 / (1 + D / 30))   (harmonic falloff, D0=30)
 
 Road-name normalization mirrors js/roadName.js normalizeRoadName(): the
 trailing section suffix ("N段") is stripped so this collection's keys line
@@ -303,9 +303,15 @@ def compute_road_stats(roads_km, counts, weighted):
     for road_name, km in roads_km.items():
         count = counts.get(road_name, 0)
         wcount = weighted.get(road_name, 0.0)
-        km_guard = km if km > 0 else 0.1  # guard divide-by-zero, mirrors js/routeStats.js
+        # Floor the density denominator at 200m: a 30-70m alley with one
+        # accident otherwise gets an apocalyptic D from the tiny denominator
+        # and dominates the "worst roads" list. Real roads are unaffected.
+        km_guard = max(km, 0.2)
         d = wcount / km_guard
-        score = round(100 * math.exp(-d / 15))
+        # Harmonic falloff, half-point D0=30 — MUST match js/routeStats.js
+        # ACCIDENT_D0 (calibrated 2026-07-19 against this dataset's own
+        # distribution: p50 D≈14 → 68, p90 D≈41 → 42, p99 D≈94 → 24).
+        score = round(100 / (1 + d / 30))
         stats[road_name] = {
             "roadName": road_name,
             "accidentCount": count,
