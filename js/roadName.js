@@ -10,12 +10,17 @@ const SECTION_SUFFIX = /[一二三四五六七八九十0-9]+段$/;
 // Leading navigation/direction words Google emits before the road name in
 // plain-text (no-<b>) instructions; stripped so the greedy road match starts
 // at the actual road name.
-const NAV_PREFIX = /^(?:請|繼續|直行|左轉|右轉|迴轉|沿著|沿|往|向|朝|經過|行駛|靠左|靠右|靠|進入|上|在|並|然後|轉|的|，|,|\s)+/;
+const NAV_PREFIX = /^(?:請|繼續|直行|左轉|右轉|迴轉|沿著|沿|走|往|向|朝|經過|行駛|靠左|靠右|靠|進入|上|在|並|然後|轉|的|，|,|\s)+/;
+
+// Instruction phrases that end in a road-suffix character but are NOT road
+// names (e.g. Google's "走行人穿越道" = "take the pedestrian crossing").
+const NOT_A_ROAD = new Set(['行人穿越道', '人行道', '地下道', '行人天橋']);
 
 function normalizeRoadName(name) {
   if (!name) return '';
   let n = String(name).replace(/\s+/g, '').trim();
   n = n.replace(SECTION_SUFFIX, '');
+  if (NOT_A_ROAD.has(n)) return '';
   return n;
 }
 

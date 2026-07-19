@@ -35,3 +35,9 @@ test('extractRoadNames dedupes and preserves order', () => {
   ] }] };
   assert.deepStrictEqual(extractRoadNames(route), ['仁愛路', '敦化南路']);
 });
+
+test('parseRoadName: pedestrian-crossing instructions are not road names', () => {
+  assert.strictEqual(parseRoadName('走<b>行人穿越道</b>'), null);
+  assert.strictEqual(parseRoadName('走行人穿越道'), null);
+  assert.strictEqual(normalizeRoadName('行人穿越道'), '');
+});
