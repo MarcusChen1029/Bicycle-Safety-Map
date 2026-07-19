@@ -32,6 +32,20 @@ class RoutePlanner {
         this._roadScores = new Map();
         this._loadRoadScores();
 
+        // Pre-load per-road accident stats (data/road_stats.json) for the
+        // instant ROAD-LEVEL evaluation on map click — zero Directions requests.
+        this.roadStats = new Map();
+        this._loadRoadStats();
+
+        // Set by setDestination() on every map click; consumed by the
+        // 開始導航 button handler (js/main.js) to run the full route pipeline
+        // on demand, only when the user actually asks to navigate.
+        this.pendingDestination = null;
+
+        // Stale-click guard: bumped on every setDestination() call so a
+        // slow/older geocode can never overwrite a newer click's render.
+        this._destinationToken = 0;
+
         console.log('✅ RoutePlanner initialized');
     }
 
@@ -47,6 +61,28 @@ class RoutePlanner {
         } catch (e) {
             console.error('Failed to load road scores:', e);
             this._roadScores = new Map();
+        }
+    }
+
+    /**
+     * Pre-load per-road accident stats from data/road_stats.json into a
+     * name -> entry map, keyed the same way as roadStats' own generator
+     * (normalizeRoadName: section suffix stripped). Non-fatal on failure —
+     * the road-level 歷史事故 bar just falls back to "no data" for every road.
+     */
+    async _loadRoadStats() {
+        try {
+            const response = await fetch('data/road_stats.json');
+            const json = await response.json();
+            const map = new Map();
+            if (json && json.roads) {
+                Object.keys(json.roads).forEach(key => map.set(key, json.roads[key]));
+            }
+            this.roadStats = map;
+            console.log(`🛣️ Loaded ${this.roadStats.size} road stats for road-level evaluation`);
+        } catch (e) {
+            console.error('Failed to load road stats:', e);
+            this.roadStats = new Map();
         }
     }
 
@@ -182,13 +218,34 @@ class RoutePlanner {
     }
 
     /**
-     * Set the destination input from a LatLng object (e.g. map click)
-     * @param {google.maps.LatLng} latLng 
+     * Set the destination input from a LatLng object (e.g. map click).
+     * Fast path: this does NOT plan a route (zero Directions requests) — it
+     * reverse-geocodes just enough to paint an instant ROAD-LEVEL evaluation
+     * from already-loaded data (this.roadStats, this._roadScores,
+     * bikeLaneLayer, youbikeLayer). The full ROUTE-level pipeline only runs
+     * when the user presses 開始導航 (js/main.js), via planRoute().
+     * @param {google.maps.LatLng} latLng
      */
     setDestination(latLng) {
+        this.pendingDestination = latLng;
+
+        // Show 開始導航 immediately — the user can ask to navigate from a
+        // road-level click alone, before any route has been planned.
+        const navBtn = document.getElementById('start-navigation-btn');
+        if (navBtn) navBtn.style.display = 'flex';
+
+        // Stale-click guard: if another click starts a newer geocode before
+        // this one resolves, this callback must not paint over it.
+        const myToken = ++this._destinationToken;
+
         // Reverse geocode to get address
         this.geocoder.geocode({ location: latLng }, (results, status) => {
-            if (status === 'OK' && results[0]) {
+            if (myToken !== this._destinationToken) return; // superseded by a newer click
+
+            let displayName = null;    // un-normalized, for the .header label
+            let normalizedName = null; // normalized, for roadStats/_roadScores lookups
+
+            if (status === 'OK' && results && results.length > 0) {
                 const address = results[0].formatted_address;
                 const input = document.getElementById('end-point');
                 if (input) {
@@ -197,15 +254,111 @@ class RoutePlanner {
                     input.dispatchEvent(new Event('input'));
                 }
                 console.log(`📍 Destination set to: ${address}`);
+
+                // Road name = first result with an address_component of type
+                // 'route'; use its long_name (un-normalized for display).
+                for (const result of results) {
+                    const routeComponent = (result.address_components || [])
+                        .find(c => c.types && c.types.includes('route'));
+                    if (routeComponent) {
+                        displayName = routeComponent.long_name;
+                        normalizedName = normalizeRoadName(displayName);
+                        break;
+                    }
+                }
+
+                // Fallback: no 'route' component in any result — trim the
+                // formatted address down to something header-sized.
+                if (!displayName) {
+                    displayName = this._trimAddress(address);
+                    normalizedName = displayName ? normalizeRoadName(displayName) : null;
+                }
             } else {
                 console.warn('Geocoder failed due to: ' + status);
                 // Fallback to coordinates if address fails
+                const coordText = `${latLng.lat().toFixed(5)}, ${latLng.lng().toFixed(5)}`;
                 const input = document.getElementById('end-point');
                 if (input) {
-                    input.value = `${latLng.lat().toFixed(5)}, ${latLng.lng().toFixed(5)}`;
+                    input.value = coordText;
                 }
+                displayName = coordText;
             }
+
+            this._renderRoadLevelEvaluation(latLng, displayName, normalizedName);
         });
+    }
+
+    /**
+     * Instant ROAD-LEVEL evaluation for a map click — zero Directions
+     * requests. Mirrors _renderFriendlinessStats/_paintFriendlinessStats'
+     * shape (compute four bar scores + overall grade, then paint) but reads
+     * point-level data instead of route-level aggregates:
+     *   - 歷史事故: data/road_stats.json entry for the normalized road name
+     *     (this.roadStats). Miss -> no data, excluded from the grade.
+     *   - 民眾意見: this._roadScores lookup — identical convention to the
+     *     route flow (no votes -> bar shows 70, excluded from the grade).
+     *   - 交通環境風險: computeRoadRiskScore(classIdx, trafficIdx) — no
+     *     Directions request, so no live-traffic refine step here (that only
+     *     happens once a full route exists, via _refineTrafficRisk).
+     *   - 基礎設施: computePointInfraScore — is the clicked point itself near
+     *     a bike lane / YouBike station.
+     * @param {google.maps.LatLng} latLng - the clicked point
+     * @param {string} displayName - un-normalized road/address label for .header
+     * @param {string|null} normalizedName - normalizeRoadName()'d, for data lookups
+     */
+    _renderRoadLevelEvaluation(latLng, displayName, normalizedName) {
+        if (typeof updateRouteHeader === 'function') {
+            updateRouteHeader(displayName);
+        }
+
+        // 歷史事故
+        const statsEntry = normalizedName ? this.roadStats.get(normalizedName) : null;
+        const accidentHasData = !!statsEntry;
+        // No entry in road_stats.json: excluded from the grade below, so the
+        // displayed value doesn't affect it — 70 keeps the bar's "no data yet"
+        // look consistent with 民眾意見's own no-data placeholder.
+        const accidentScore = accidentHasData ? statsEntry.accidentScore : 70;
+
+        // 民眾意見 — same convention as the route flow's per-step lookup
+        const rec = normalizedName ? this._roadScores.get(normalizedName) : null;
+        const opinion = (rec && rec.count > 0)
+            ? computeOpinionScore(rec.sum / rec.count, 1)
+            : computeOpinionScore(0, 0);
+
+        // 交通環境風險 — no route/Directions request; road-class + time-of-day only
+        const classIdx = classValueForRoadName(normalizedName);
+        const trafficIdx = trafficIdxFallback(new Date());
+        const riskScore = computeRoadRiskScore(classIdx, trafficIdx);
+
+        // 基礎設施 — is the clicked point itself near a lane / station
+        const laneNear = this._isPointNearBikeLane(latLng);
+        const stations = (this.youbikeLayer && this.youbikeLayer.allStations) ? this.youbikeLayer.allStations : [];
+        const stationNear = this._isNearAnyStation(latLng, stations, 350);
+        const infraScore = computePointInfraScore(laneNear, stationNear);
+
+        const scores = { accident: accidentScore, risk: riskScore, infrastructure: infraScore, opinion: opinion.score };
+        const grade = computeOverallGrade(scores, { accident: accidentHasData, opinion: opinion.hasData });
+
+        if (typeof updateFriendlinessBars === 'function') {
+            updateFriendlinessBars(scores);
+        }
+        if (typeof updateFriendlinessGrade === 'function') {
+            updateFriendlinessGrade(grade);
+        }
+    }
+
+    /**
+     * Whether a single point is within tolerance of any bike-lane polyline —
+     * one isLocationOnEdge sweep per lane, for the ONE clicked point (unlike
+     * the route flow's per-step multi-sample-point sweep, which has no single
+     * point to test).
+     * @param {google.maps.LatLng} latLng
+     * @returns {boolean}
+     */
+    _isPointNearBikeLane(latLng) {
+        const polys = (this.bikeLaneLayer && this.bikeLaneLayer.polylines) ? this.bikeLaneLayer.polylines : [];
+        if (polys.length === 0) return false;
+        return polys.some(poly => google.maps.geometry.poly.isLocationOnEdge(latLng, poly, 0.00025));
     }
 
     /**
