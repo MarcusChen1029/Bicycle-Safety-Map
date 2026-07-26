@@ -297,61 +297,78 @@ class RoutePlanner {
         // this one resolves, this callback must not paint over it.
         const myToken = ++this._destinationToken;
 
-        // Reverse geocode to get address
-        this.geocoder.geocode({ location: latLng }, (results, status) => {
+        // Reverse geocode to get address (shared helper — also used by the
+        // origin/destination marker dragend handlers below).
+        this._reverseGeocodeRoadName(latLng).then(({ displayName, normalizedName, formattedAddress }) => {
             if (myToken !== this._destinationToken) return; // superseded by a newer click
 
-            let displayName = null;    // un-normalized, for the .header label
-            let normalizedName = null; // normalized, for roadStats/_roadScores lookups
-
-            if (status === 'OK' && results && results.length > 0) {
-                const address = results[0].formatted_address;
-                const input = document.getElementById('end-point');
-                if (input) {
-                    input.value = address;
-                    // Trigger input event if any listeners are watching
-                    input.dispatchEvent(new Event('input'));
-                }
-                console.log(`📍 Destination set to: ${address}`);
-
-                // Road name = first result with an address_component of type
-                // 'route'; use its long_name (un-normalized for display).
-                for (const result of results) {
-                    const routeComponent = (result.address_components || [])
-                        .find(c => c.types && c.types.includes('route'));
-                    if (routeComponent) {
-                        displayName = routeComponent.long_name;
-                        normalizedName = normalizeRoadName(displayName);
-                        break;
-                    }
-                }
-
-                // Fallback: no 'route' component in any result — trim the
-                // formatted address down to something header-sized.
-                if (!displayName) {
-                    displayName = this._trimAddress(address);
-                    normalizedName = displayName ? normalizeRoadName(displayName) : null;
-                }
-            } else {
-                console.warn('Geocoder failed due to: ' + status);
-                // Fallback to coordinates if address fails
-                const coordText = `${latLng.lat().toFixed(5)}, ${latLng.lng().toFixed(5)}`;
-                const input = document.getElementById('end-point');
-                if (input) {
-                    input.value = coordText;
-                }
-                displayName = coordText;
+            const input = document.getElementById('end-point');
+            if (input) {
+                input.value = formattedAddress || displayName;
+                if (formattedAddress) input.dispatchEvent(new Event('input'));
+            }
+            if (formattedAddress) {
+                console.log(`📍 Destination set to: ${formattedAddress}`);
             }
 
             // Only record this as "the currently inspected spot" if a newer
             // click/search hasn't already superseded it (same guard as the
             // paint call below).
-            if (myToken === this._destinationToken) {
-                this.lastInspectedLatLng = latLng;
-                this.lastInspectedName = displayName;
-            }
+            this.lastInspectedLatLng = latLng;
+            this.lastInspectedName = displayName;
 
             this._renderRoadLevelEvaluation(latLng, displayName, normalizedName);
+        });
+    }
+
+    /**
+     * Reverse-geocode `latLng` into a road/address label, using the same
+     * extraction rules the original map-click inspect flow always used:
+     * prefer the first result's 'route' address_component (un-normalized
+     * long_name for display, normalizeRoadName()'d for data lookups),
+     * falling back to a trimmed formatted_address, and finally to a
+     * "lat, lng" string if the geocode itself fails. Shared by
+     * setDestination() and the origin/destination marker dragend handlers
+     * so this extraction logic lives in exactly one place.
+     * @param {google.maps.LatLng} latLng
+     * @returns {Promise<{displayName:string, normalizedName:string|null, formattedAddress:string|null}>}
+     */
+    _reverseGeocodeRoadName(latLng) {
+        return new Promise((resolve) => {
+            this.geocoder.geocode({ location: latLng }, (results, status) => {
+                let displayName = null;
+                let normalizedName = null;
+                let formattedAddress = null;
+
+                if (status === 'OK' && results && results.length > 0) {
+                    formattedAddress = results[0].formatted_address;
+
+                    // Road name = first result with an address_component of
+                    // type 'route'; use its long_name (un-normalized for display).
+                    for (const result of results) {
+                        const routeComponent = (result.address_components || [])
+                            .find(c => c.types && c.types.includes('route'));
+                        if (routeComponent) {
+                            displayName = routeComponent.long_name;
+                            normalizedName = normalizeRoadName(displayName);
+                            break;
+                        }
+                    }
+
+                    // Fallback: no 'route' component in any result — trim the
+                    // formatted address down to something header-sized.
+                    if (!displayName) {
+                        displayName = this._trimAddress(formattedAddress);
+                        normalizedName = displayName ? normalizeRoadName(displayName) : null;
+                    }
+                } else {
+                    console.warn('Geocoder failed due to: ' + status);
+                    // Fallback to coordinates if address fails
+                    displayName = `${latLng.lat().toFixed(5)}, ${latLng.lng().toFixed(5)}`;
+                }
+
+                resolve({ displayName, normalizedName, formattedAddress });
+            });
         });
     }
 
@@ -451,9 +468,11 @@ class RoutePlanner {
                 position: latLng,
                 icon,
                 label,
+                draggable: true,
                 zIndex: 999, // above the heatmap, YouBike and report markers
                 title: title || ''
             });
+            this.clickMarker.addListener('dragend', () => this._handleDestinationDragend());
             return;
         }
 
@@ -511,6 +530,7 @@ class RoutePlanner {
                 zIndex: 998, // below clickMarker (999), above layers
                 title: '起點'
             });
+            this.originMarker.addListener('dragend', () => this._handleOriginDragend());
         } else {
             this.originMarker.setPosition(normalized);
             this.originMarker.setMap(this.map);
@@ -549,10 +569,9 @@ class RoutePlanner {
 
         this.setDestination(normalized);
 
-        // Make the committed destination pin draggable (dragend wiring
-        // lands in a later commit; this just keeps the marker interactive
-        // from the moment it becomes a real destination, not just an
-        // inspected spot).
+        // clickMarker is created draggable (see _showClickMarker) with its
+        // dragend handler wired at creation time, so nothing extra is
+        // needed here beyond making sure it stays draggable across reuse.
         if (this.clickMarker) this.clickMarker.setDraggable(true);
 
         if (this.originLatLng && this.pendingDestination) {
@@ -574,6 +593,56 @@ class RoutePlanner {
         const originStr = `${this.originLatLng.lat()},${this.originLatLng.lng()}`;
         const destStr = `${this.pendingDestination.lat()},${this.pendingDestination.lng()}`;
         this.planRoute(originStr, destStr);
+    }
+
+    /**
+     * originMarker's dragend handler. Re-plans immediately from the new
+     * position (routing doesn't need to wait on the reverse geocode, which
+     * is only for the #start-point display text) and separately refreshes
+     * the input text once _reverseGeocodeRoadName resolves.
+     */
+    _handleOriginDragend() {
+        const newPos = this.originMarker.getPosition();
+        this.originLatLng = newPos;
+        this._maybeAutoPlan();
+
+        this._reverseGeocodeRoadName(newPos).then(({ displayName, formattedAddress }) => {
+            const input = document.getElementById('start-point');
+            if (input) input.value = formattedAddress || displayName;
+        });
+    }
+
+    /**
+     * clickMarker's dragend handler, for the case where it represents a
+     * COMMITTED destination (as opposed to a not-yet-committed inspect
+     * pin — dragging either is harmless, this just keeps pendingDestination
+     * and the road-level grade in sync with wherever the pin ends up).
+     * Re-plans immediately (if origin is also set) using the new position,
+     * then refreshes #end-point's text and the 友善等級 grade once the
+     * reverse geocode resolves.
+     */
+    _handleDestinationDragend() {
+        const newPos = this.clickMarker.getPosition();
+        this.pendingDestination = newPos;
+        this.lastInspectedLatLng = newPos;
+
+        // If origin is already set, this drag re-plans a full ROUTE, whose
+        // own _renderFriendlinessStats becomes the authoritative panel
+        // repaint. Remember that BEFORE the geocode resolves, so the point-
+        // level re-grade below doesn't race it and overwrite the route
+        // grade with a point-only one.
+        const willAutoPlan = !!this.originLatLng;
+        this._maybeAutoPlan();
+
+        this._reverseGeocodeRoadName(newPos).then(({ displayName, normalizedName, formattedAddress }) => {
+            const input = document.getElementById('end-point');
+            if (input) input.value = formattedAddress || displayName;
+            this.lastInspectedName = displayName;
+
+            if (!willAutoPlan) {
+                this._renderRoadLevelEvaluation(newPos, displayName, normalizedName);
+            }
+        });
     }
 
     /**
