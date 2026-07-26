@@ -229,14 +229,23 @@ function computeOpinionScore(totalScore, stepCount) {
 const GRADE_WEIGHTS = { accident: 0.35, risk: 0.30, infrastructure: 0.20, opinion: 0.15 };
 
 /**
- * Grade letter/color thresholds (same as the removed demo updateLevel()):
- * >85 A, >70 B, >55 C, >40 D, else E.
+ * Grade letter/color thresholds: >72 A, >60 B, >48 C, >36 D, else E.
+ *
+ * Calibrated 2026-07-26 against the real Taipei distribution (all 7,134 roads
+ * in data/road_stats.json, evaluated at the typical click scenario: no bike
+ * lane, YouBike station within 350 m, daytime traffic). The inherited demo
+ * thresholds (>85/>70/>55/>40) assumed component scores centred near 80, but
+ * 交通環境風險 and 基礎設施 sit near 51 and 55 for ordinary city streets, so
+ * A was mathematically unreachable and every major road collapsed to C/D.
+ * Under these thresholds major roads spread B 71% / C 24% / D 5%, quiet
+ * alleys with no accident history reach A, and a major road earns A only
+ * when it actually has a bike lane (or is ridden off-peak).
  */
 function gradeForScore(score) {
-  if (score > 85) return { letter: 'A', color: '#28a745' };
-  if (score > 70) return { letter: 'B', color: '#daff07' };
-  if (score > 55) return { letter: 'C', color: '#dc8e35' };
-  if (score > 40) return { letter: 'D', color: '#ff0000' };
+  if (score > 72) return { letter: 'A', color: '#28a745' };
+  if (score > 60) return { letter: 'B', color: '#daff07' };
+  if (score > 48) return { letter: 'C', color: '#dc8e35' };
+  if (score > 36) return { letter: 'D', color: '#ff0000' };
   return { letter: 'E', color: '#000' };
 }
 

@@ -200,11 +200,12 @@ test('computeOpinionScore: averages per-step scores onto a 0-100 scale', () => {
 // ------------------------------------------------------------------
 
 test('gradeForScore: boundary values', () => {
-  assert.deepStrictEqual(gradeForScore(85), { letter: 'B', color: '#daff07' });
-  assert.deepStrictEqual(gradeForScore(85.01), { letter: 'A', color: '#28a745' });
-  assert.deepStrictEqual(gradeForScore(70), { letter: 'C', color: '#dc8e35' });
-  assert.deepStrictEqual(gradeForScore(55), { letter: 'D', color: '#ff0000' });
-  assert.deepStrictEqual(gradeForScore(40), { letter: 'E', color: '#000' });
+  // Thresholds are exclusive: a score exactly ON a boundary takes the lower grade.
+  assert.deepStrictEqual(gradeForScore(72), { letter: 'B', color: '#daff07' });
+  assert.deepStrictEqual(gradeForScore(72.01), { letter: 'A', color: '#28a745' });
+  assert.deepStrictEqual(gradeForScore(60), { letter: 'C', color: '#dc8e35' });
+  assert.deepStrictEqual(gradeForScore(48), { letter: 'D', color: '#ff0000' });
+  assert.deepStrictEqual(gradeForScore(36), { letter: 'E', color: '#000' });
   assert.deepStrictEqual(gradeForScore(0), { letter: 'E', color: '#000' });
 });
 
@@ -225,10 +226,10 @@ test('computeOverallGrade: opinion excluded and remaining weights renormalized',
 
 test('computeOverallGrade: weighted mean matches manual computation', () => {
   const scores = { accident: 80, risk: 60, infrastructure: 50, opinion: 90 };
-  // 0.35*80 + 0.30*60 + 0.20*50 + 0.15*90 = 28 + 18 + 10 + 13.5 = 69.5 -> round 70 -> 'C'
+  // 0.35*80 + 0.30*60 + 0.20*50 + 0.15*90 = 28 + 18 + 10 + 13.5 = 69.5 -> round 70 -> 'B' (>60)
   const result = computeOverallGrade(scores, true);
   assert.strictEqual(result.overall, Math.round(0.35 * 80 + 0.30 * 60 + 0.20 * 50 + 0.15 * 90));
-  assert.strictEqual(result.letter, 'C');
+  assert.strictEqual(result.letter, 'B');
 });
 
 test('computeOverallGrade: opinion-excluded renormalization matches manual computation', () => {
