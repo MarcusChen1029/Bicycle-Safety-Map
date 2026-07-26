@@ -380,6 +380,35 @@ class BikeMapApp {
       });
     }
 
+    // 詳情面板：把目前檢視中的地點設為起點/終點
+    const setAsOriginBtn = document.getElementById('set-as-origin');
+    if (setAsOriginBtn) {
+      setAsOriginBtn.addEventListener('click', () => {
+        if (!this.routePlanner || !this.routePlanner.lastInspectedLatLng) {
+          alert('請先點擊地圖或搜尋一個地點。');
+          return;
+        }
+        this.routePlanner.setOrigin(
+          this.routePlanner.lastInspectedLatLng,
+          this.routePlanner.lastInspectedName
+        );
+      });
+    }
+
+    const setAsDestBtn = document.getElementById('set-as-dest');
+    if (setAsDestBtn) {
+      setAsDestBtn.addEventListener('click', () => {
+        if (!this.routePlanner || !this.routePlanner.lastInspectedLatLng) {
+          alert('請先點擊地圖或搜尋一個地點。');
+          return;
+        }
+        this.routePlanner.setDestinationCommitted(
+          this.routePlanner.lastInspectedLatLng,
+          this.routePlanner.lastInspectedName
+        );
+      });
+    }
+
     // Close Details Panel
     const closeDetailsBtn = document.getElementById('close-details');
     if (closeDetailsBtn) {
@@ -396,11 +425,16 @@ class BikeMapApp {
     if (useMyLocBtn) {
       useMyLocBtn.addEventListener('click', () => {
         if (this.currentPosition) {
-          const startInput = document.getElementById('start-point');
-          if (startInput) {
-            startInput.value = `${this.currentPosition.lat.toFixed(6)}, ${this.currentPosition.lng.toFixed(6)}`;
-            console.log('📍 已自動填入目前位置為起點');
+          if (this.routePlanner) {
+            // Also drops the green origin pin on the map, not just the text input.
+            this.routePlanner.setOrigin(this.currentPosition);
+          } else {
+            const startInput = document.getElementById('start-point');
+            if (startInput) {
+              startInput.value = `${this.currentPosition.lat.toFixed(6)}, ${this.currentPosition.lng.toFixed(6)}`;
+            }
           }
+          console.log('📍 已自動填入目前位置為起點');
         } else {
           alert('尚未取得 GPS 位置，請允許定位權限並稍候。');
         }

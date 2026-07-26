@@ -48,6 +48,18 @@ class RoutePlanner {
         // the 友善等級 once the road-level evaluation resolves.
         this.clickMarker = null;
 
+        // Committed origin: set via setOrigin() (設為起點 button, GPS
+        // "使用目前位置" button, or autocomplete/drag). Distinct from
+        // pendingDestination/clickMarker, which track the INSPECT flow.
+        this.originLatLng = null;
+        this.originMarker = null;
+
+        // Most recently INSPECTED spot (map click / search / autocomplete on
+        // the destination side) — this is what the 設為起點/設為終點 panel
+        // buttons commit when pressed.
+        this.lastInspectedLatLng = null;
+        this.lastInspectedName = null;
+
         console.log('✅ RoutePlanner initialized');
     }
 
@@ -267,6 +279,8 @@ class RoutePlanner {
 
     setDestination(latLng) {
         this.pendingDestination = latLng;
+        this.lastInspectedLatLng = latLng;
+        this.lastInspectedName = null; // filled in once the reverse geocode below resolves
 
         // Drop the pin right away so the click has an immediate anchor on the
         // map; it stays grey until the evaluation below resolves into a grade.
@@ -325,6 +339,14 @@ class RoutePlanner {
                     input.value = coordText;
                 }
                 displayName = coordText;
+            }
+
+            // Only record this as "the currently inspected spot" if a newer
+            // click/search hasn't already superseded it (same guard as the
+            // paint call below).
+            if (myToken === this._destinationToken) {
+                this.lastInspectedLatLng = latLng;
+                this.lastInspectedName = displayName;
             }
 
             this._renderRoadLevelEvaluation(latLng, displayName, normalizedName);
@@ -438,6 +460,118 @@ class RoutePlanner {
         this.clickMarker.setLabel(label);
         if (title) this.clickMarker.setTitle(title);
         this.clickMarker.setMap(this.map);
+    }
+
+    /**
+     * Normalize a google.maps.LatLng OR a plain {lat,lng} literal (e.g. the
+     * GPS currentPosition object main.js tracks) into a real
+     * google.maps.LatLng, so every caller below can rely on .lat()/.lng().
+     * @param {google.maps.LatLng|{lat:number,lng:number}} latLng
+     * @returns {google.maps.LatLng}
+     */
+    _toLatLng(latLng) {
+        if (latLng && typeof latLng.lat === 'function') return latLng;
+        return new google.maps.LatLng(latLng.lat, latLng.lng);
+    }
+
+    /**
+     * Commit `latLng` as the real ROUTING origin — distinct from the
+     * INSPECT-only flow (setDestination/clickMarker). Drops/moves a GREEN
+     * "起" pin so the origin is never visually confused with the
+     * grade-colored destination pin. Auto-plans the route once both
+     * endpoints are set (see _maybeAutoPlan).
+     * @param {google.maps.LatLng|{lat:number,lng:number}} latLng
+     * @param {string} [label] - text to fill #start-point with; falls back
+     *   to a formatted "lat, lng" string when omitted (e.g. GPS fix with no
+     *   reverse-geocoded address yet).
+     */
+    setOrigin(latLng, label) {
+        const normalized = this._toLatLng(latLng);
+        this.originLatLng = normalized;
+
+        const icon = {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 12,
+            fillColor: '#28a745',
+            fillOpacity: 1,
+            strokeColor: '#fff',
+            strokeWeight: 2
+        };
+        const markerLabel = { text: '起', color: '#fff', fontSize: '12px', fontWeight: 'bold' };
+
+        if (!this.originMarker) {
+            this.originMarker = new google.maps.Marker({
+                map: this.map,
+                position: normalized,
+                icon,
+                label: markerLabel,
+                draggable: true,
+                zIndex: 998, // below clickMarker (999), above layers
+                title: '起點'
+            });
+        } else {
+            this.originMarker.setPosition(normalized);
+            this.originMarker.setMap(this.map);
+        }
+
+        const input = document.getElementById('start-point');
+        if (input) {
+            input.value = label || `${normalized.lat().toFixed(6)}, ${normalized.lng().toFixed(6)}`;
+        }
+
+        if (this.originLatLng && this.pendingDestination) {
+            this._maybeAutoPlan();
+        }
+    }
+
+    /**
+     * Commit `latLng` as the real ROUTING destination. Reuses the existing
+     * INSPECT pipeline (setDestination -> reverse geocode -> road-level
+     * grade -> _showClickMarker) so the destination pin keeps showing the
+     * road's 友善等級 color rather than introducing a second, plain marker
+     * type — this is the "reuse the grading pin" choice called out in the
+     * commit body. `label`, when given (panel button using the
+     * already-inspected name, or an autocomplete place name), pre-fills
+     * #end-point immediately for instant feedback; the reverse geocode
+     * inside setDestination then confirms/refines it moments later.
+     * @param {google.maps.LatLng|{lat:number,lng:number}} latLng
+     * @param {string} [label]
+     */
+    setDestinationCommitted(latLng, label) {
+        const normalized = this._toLatLng(latLng);
+
+        if (label) {
+            const input = document.getElementById('end-point');
+            if (input) input.value = label;
+        }
+
+        this.setDestination(normalized);
+
+        // Make the committed destination pin draggable (dragend wiring
+        // lands in a later commit; this just keeps the marker interactive
+        // from the moment it becomes a real destination, not just an
+        // inspected spot).
+        if (this.clickMarker) this.clickMarker.setDraggable(true);
+
+        if (this.originLatLng && this.pendingDestination) {
+            this._maybeAutoPlan();
+        }
+    }
+
+    /**
+     * Auto-trigger the full route pipeline once BOTH endpoints are
+     * committed. setOrigin/setDestinationCommitted can land in either
+     * order (map click, panel button, GPS, autocomplete, drag), so both
+     * call this after updating their own half of the pair; it's a no-op
+     * until the other half is also set. Reuses planRoute's existing
+     * "lat,lng" string argument format so the whole scoring/detour/render
+     * pipeline repaints exactly as if 規劃路線 had been pressed.
+     */
+    _maybeAutoPlan() {
+        if (!this.originLatLng || !this.pendingDestination) return;
+        const originStr = `${this.originLatLng.lat()},${this.originLatLng.lng()}`;
+        const destStr = `${this.pendingDestination.lat()},${this.pendingDestination.lng()}`;
+        this.planRoute(originStr, destStr);
     }
 
     /**
@@ -1147,6 +1281,11 @@ class RoutePlanner {
             this.clickMarker.setMap(null);
         }
         this.pendingDestination = null;
+
+        if (this.originMarker) {
+            this.originMarker.setMap(null);
+        }
+        this.originLatLng = null;
 
         console.log('🗑️ Route cleared');
     }
