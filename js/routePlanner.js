@@ -44,6 +44,10 @@ class RoutePlanner {
         // slow/older geocode can never overwrite a newer click's render.
         this._destinationToken = 0;
 
+        // Pin marking the spot the user clicked to inspect; recolored with
+        // the 友善等級 once the road-level evaluation resolves.
+        this.clickMarker = null;
+
         console.log('✅ RoutePlanner initialized');
     }
 
@@ -227,6 +231,10 @@ class RoutePlanner {
     setDestination(latLng) {
         this.pendingDestination = latLng;
 
+        // Drop the pin right away so the click has an immediate anchor on the
+        // map; it stays grey until the evaluation below resolves into a grade.
+        this._showClickMarker(latLng, null);
+
         // Show 開始導航 immediately — the user can ask to navigate from a
         // road-level click alone, before any route has been planned.
         const navBtn = document.getElementById('start-navigation-btn');
@@ -343,6 +351,56 @@ class RoutePlanner {
         if (typeof updateFriendlinessGrade === 'function') {
             updateFriendlinessGrade(grade);
         }
+
+        // Recolor the pin dropped at click time with the resolved grade.
+        this._showClickMarker(latLng, grade, displayName);
+    }
+
+    /**
+     * Place (or move) the pin marking the inspected spot. Reuses one marker
+     * instance so rapid clicks don't litter the map.
+     * @param {google.maps.LatLng} latLng
+     * @param {{letter: string, color: string}|null} grade - null = still
+     *   evaluating, drawn grey with no letter
+     * @param {string} [title] - road name, shown as the hover tooltip
+     */
+    _showClickMarker(latLng, grade, title) {
+        if (!this.map) return;
+
+        const fill = grade ? grade.color : '#9e9e9e';
+        // B's bright yellow-green needs dark text to stay legible.
+        const labelColor = (fill.toLowerCase() === '#daff07') ? '#333' : '#fff';
+
+        const icon = {
+            path: 'M 0,0 C -2,-19 -9,-21 -9,-28 A 9,9 0 1,1 9,-28 C 9,-21 2,-19 0,0 z',
+            fillColor: fill,
+            fillOpacity: 1,
+            strokeColor: '#fff',
+            strokeWeight: 2,
+            scale: 1.1,
+            labelOrigin: new google.maps.Point(0, -28)
+        };
+        const label = grade
+            ? { text: grade.letter, color: labelColor, fontSize: '13px', fontWeight: 'bold' }
+            : null;
+
+        if (!this.clickMarker) {
+            this.clickMarker = new google.maps.Marker({
+                map: this.map,
+                position: latLng,
+                icon,
+                label,
+                zIndex: 999, // above the heatmap, YouBike and report markers
+                title: title || ''
+            });
+            return;
+        }
+
+        this.clickMarker.setPosition(latLng);
+        this.clickMarker.setIcon(icon);
+        this.clickMarker.setLabel(label);
+        if (title) this.clickMarker.setTitle(title);
+        this.clickMarker.setMap(this.map);
     }
 
     /**
@@ -1047,6 +1105,11 @@ class RoutePlanner {
 
         const navBtn = document.getElementById('start-navigation-btn');
         if (navBtn) navBtn.style.display = 'none';
+
+        if (this.clickMarker) {
+            this.clickMarker.setMap(null);
+        }
+        this.pendingDestination = null;
 
         console.log('🗑️ Route cleared');
     }
