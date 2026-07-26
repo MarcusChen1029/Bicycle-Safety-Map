@@ -15,6 +15,8 @@ class RoutePlanner {
         });
 
         this.geocoder = new google.maps.Geocoder();
+        this.initAutocomplete();
+
         this.favorites = this.loadFavorites();
         this.bindFavoriteEvents();
         this.renderFavorites();
@@ -572,6 +574,42 @@ class RoutePlanner {
         const originStr = `${this.originLatLng.lat()},${this.originLatLng.lng()}`;
         const destStr = `${this.pendingDestination.lat()},${this.pendingDestination.lng()}`;
         this.planRoute(originStr, destStr);
+    }
+
+    /**
+     * Attach classic google.maps.places.Autocomplete to #start-point and
+     * #end-point so an address can be picked from a dropdown instead of a
+     * full map click / search round trip. Guarded by `google.maps.places`
+     * existing — the `places` library can be missing (e.g. the Maps script
+     * tag loaded without it, or a headless context without the real Maps
+     * API at all), and this must not throw in that case.
+     */
+    initAutocomplete() {
+        if (!google.maps.places) return;
+
+        const attach = (input, onPlaceChosen) => {
+            if (!input) return;
+            const autocomplete = new google.maps.places.Autocomplete(input, {
+                componentRestrictions: { country: 'tw' },
+                fields: ['geometry', 'name', 'formatted_address']
+            });
+            if (this.map) autocomplete.bindTo('bounds', this.map);
+
+            autocomplete.addListener('place_changed', () => {
+                const place = autocomplete.getPlace();
+                if (!place || !place.geometry || !place.geometry.location) {
+                    console.warn('⚠️ Autocomplete: no geometry for the selected place, ignoring');
+                    return;
+                }
+                const loc = place.geometry.location;
+                const label = place.name || place.formatted_address || '';
+                if (this.map) this.map.panTo(loc);
+                onPlaceChosen(loc, label);
+            });
+        };
+
+        attach(document.getElementById('start-point'), (loc, label) => this.setOrigin(loc, label));
+        attach(document.getElementById('end-point'), (loc, label) => this.setDestinationCommitted(loc, label));
     }
 
     /**
