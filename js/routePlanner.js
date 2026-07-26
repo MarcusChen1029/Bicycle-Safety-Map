@@ -228,6 +228,43 @@ class RoutePlanner {
      * when the user presses 開始導航 (js/main.js), via planRoute().
      * @param {google.maps.LatLng} latLng
      */
+    /**
+     * Geocode a place name / address from the search bar, pan+zoom the map to
+     * it, then run the same road-level inspection a map click does (opens the
+     * details panel, drops the graded pin, sets it as the pending destination
+     * so 開始導航 can route there). Region-biased to Taiwan so bare road names
+     * resolve locally.
+     * @param {string} query
+     * @returns {Promise<void>}
+     */
+    searchAndInspect(query) {
+        const q = (query || '').trim();
+        if (!q) return Promise.resolve();
+
+        return new Promise((resolve) => {
+            this.geocoder.geocode(
+                { address: q, region: 'TW', bounds: this.map ? this.map.getBounds() : undefined },
+                (results, status) => {
+                    if (status === 'OK' && results && results[0]) {
+                        const loc = results[0].geometry.location;
+                        if (this.map) {
+                            this.map.panTo(loc);
+                            this.map.setZoom(17);
+                        }
+                        const details = document.querySelector('.details');
+                        if (details) details.classList.add('active');
+                        // Reuse the whole click pipeline: pin + road-level grade.
+                        this.setDestination(loc);
+                    } else {
+                        console.warn(`🔍 Search failed for "${q}": ${status}`);
+                        alert(`找不到「${q}」，請換個關鍵字或更完整的地址。`);
+                    }
+                    resolve();
+                }
+            );
+        });
+    }
+
     setDestination(latLng) {
         this.pendingDestination = latLng;
 

@@ -84,6 +84,30 @@ class BikeMapApp {
       });
     }
 
+    // Location search bar
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.getElementById('search-btn');
+    const searchClearBtn = document.getElementById('search-clear-btn');
+
+    const runSearch = () => {
+      if (searchInput) this.routePlanner.searchAndInspect(searchInput.value);
+    };
+
+    if (searchBtn) {
+      searchBtn.addEventListener('click', runSearch);
+    }
+    if (searchInput) {
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') runSearch();
+      });
+    }
+    if (searchClearBtn) {
+      searchClearBtn.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        this.routePlanner.clearRoute();
+      });
+    }
+
     // Start Navigation Event
     const startNavBtn = document.getElementById('start-navigation-btn');
     if (startNavBtn) {
