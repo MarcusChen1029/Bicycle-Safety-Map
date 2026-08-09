@@ -7,6 +7,10 @@ class RoutePlanner {
         this.directionsService = new google.maps.DirectionsService();
         this.directionsRenderer = new google.maps.DirectionsRenderer({
             map: this.map,
+            // Don't draw Google's default A/B endpoint markers — they'd
+            // overlay (and steal drag events from) our own draggable
+            // origin/destination pins.
+            suppressMarkers: true,
             polylineOptions: {
                 strokeColor: '#4285f4',
                 strokeWeight: 6,
