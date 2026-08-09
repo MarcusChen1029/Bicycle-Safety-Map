@@ -136,17 +136,30 @@ body {
 }
 
 .stats-item {
-    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
 }
 
-.stats-label {
-    display: flex;
-    justify-content: space-between;
+.stats-name {
+    flex: 0 0 auto;
+    width: 84px;
     font-size: 13px;
-    margin-bottom: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stats-item .score {
+    flex: 0 0 auto;
+    width: 28px;
+    font-size: 13px;
+    text-align: right;
 }
 
 .progress-bg {
+    flex: 1 1 auto;
     background: #eee;
     height: 8px;
     border-radius: 4px;
