@@ -494,3 +494,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 });
+
+/**
+ * Toggle the top-level loading overlay (spinner + label). Called around
+ * multi-second operations (route planning) so the user gets a visible
+ * "something is happening" cue instead of a frozen-looking map.
+ */
+function showLoadingSpinner(text) {
+    const overlay = document.getElementById('loading-overlay');
+    if (!overlay) return;
+    if (text) {
+        const label = overlay.querySelector('.loading-text');
+        if (label) label.textContent = text;
+    }
+    overlay.classList.add('visible');
+    overlay.setAttribute('aria-hidden', 'false');
+}
+
+function hideLoadingSpinner() {
+    const overlay = document.getElementById('loading-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('visible');
+    overlay.setAttribute('aria-hidden', 'true');
+}

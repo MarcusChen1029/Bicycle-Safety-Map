@@ -792,3 +792,41 @@ body.nav-mode-active .map {
 .feedback-road-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
 .feedback-road-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: #f5f5f5; cursor: pointer; font-size: 14px; }
 .feedback-road-item input { width: 16px; height: 16px; }
+/* Loading overlay for multi-second operations (route planning).
+   Fixed centered, non-blocking (pointer-events:none), fades in/out. */
+#loading-overlay {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 22px;
+    background: rgba(30, 30, 30, 0.88);
+    color: #fff;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    z-index: 10000;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.18s ease, visibility 0.18s ease;
+}
+#loading-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+.loading-spinner {
+    width: 22px;
+    height: 22px;
+    border: 3px solid rgba(255, 255, 255, 0.25);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spinnerRotate 0.8s linear infinite;
+}
+@keyframes spinnerRotate {
+    to { transform: rotate(360deg); }
+}

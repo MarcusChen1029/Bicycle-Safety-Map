@@ -731,6 +731,7 @@ class RoutePlanner {
             avoidTolls: true
         };
 
+        showLoadingSpinner('規劃路線中…');
         try {
             const result = await this.calculateRoute(request);
 
@@ -887,6 +888,8 @@ class RoutePlanner {
         } catch (error) {
             console.error('❌ Direction request failed due to ' + error);
             alert('Could not find a route. Please check the addresses and try again.\nError: ' + error.message);
+        } finally {
+            hideLoadingSpinner();
         }
     }
 
