@@ -123,17 +123,19 @@ body {
 .safety-level {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+    gap: 5px;
     background: #28a745;
     color: white;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    border-radius: 50%;
+    padding: 5px 10px;
+    border-radius: 14px;
+}
+
+.safety-level-label {
+    font-size: 12px;
 }
 
 .level {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: bold;
 }
 
