@@ -731,7 +731,10 @@ class RoutePlanner {
             avoidTolls: true
         };
 
-        showLoadingSpinner('規劃路線中…');
+        // typeof-guarded like every other cross-file UI call in this class —
+        // a stale-cached script.js must degrade to "no spinner", never break
+        // route planning itself.
+        if (typeof showLoadingSpinner === 'function') showLoadingSpinner('規劃路線中…');
         try {
             const result = await this.calculateRoute(request);
 
@@ -889,7 +892,7 @@ class RoutePlanner {
             console.error('❌ Direction request failed due to ' + error);
             alert('Could not find a route. Please check the addresses and try again.\nError: ' + error.message);
         } finally {
-            hideLoadingSpinner();
+            if (typeof hideLoadingSpinner === 'function') hideLoadingSpinner();
         }
     }
 
