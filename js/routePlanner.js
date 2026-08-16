@@ -164,6 +164,7 @@ class RoutePlanner {
     saveFavorites() {
         localStorage.setItem('bike_map_favorites', JSON.stringify(this.favorites));
         this.renderFavorites(); // Update UI
+        this._updateFavoriteStarState(this.lastInspectedName); // list may have changed under the currently inspected spot
     }
 
     /**
@@ -186,6 +187,47 @@ class RoutePlanner {
         });
 
         this.saveFavorites();
+    }
+
+    /**
+     * ⭐ button in the details panel (next to the road name) — toggles the
+     * spot currently being inspected (map click / search) in/out of
+     * favorites. Already favorited (by name, same match rule
+     * _updateFavoriteStarState uses) -> remove it, no confirm needed since
+     * this is an explicit un-click of the same star. Otherwise add it, using
+     * the road name as both the favorite's name and, as a "lat,lng" string,
+     * its address — same format every other committed-location flow in this
+     * class already accepts, so it plans/geocodes exactly like a typed one.
+     */
+    addFavoriteFromInspected() {
+        if (!this.lastInspectedLatLng) {
+            alert('請先點擊地圖或搜尋一個地點。');
+            return;
+        }
+        const latLng = this.lastInspectedLatLng;
+        const name = this.lastInspectedName || `${latLng.lat().toFixed(5)}, ${latLng.lng().toFixed(5)}`;
+
+        const existing = this.favorites.find(f => f.name === name);
+        if (existing) {
+            this.deleteFavorite(existing.id);
+            return;
+        }
+
+        const address = `${latLng.lat()},${latLng.lng()}`;
+        this.addFavorite(name, address);
+    }
+
+    /**
+     * Sync the ⭐ button's filled/outline state to whether `name` is already
+     * in favorites — same match rule addFavorite() uses for its own dedupe
+     * check, so "already favorited" means the same thing in both places.
+     */
+    _updateFavoriteStarState(name) {
+        const btn = document.getElementById('favorite-star-btn');
+        if (!btn) return;
+        const isFavorited = !!name && this.favorites.some(f => f.name === name);
+        btn.textContent = isFavorited ? '★' : '☆';
+        btn.classList.toggle('is-favorited', isFavorited);
     }
 
     /**
@@ -434,6 +476,7 @@ class RoutePlanner {
         if (typeof updateRouteHeader === 'function') {
             updateRouteHeader(displayName);
         }
+        this._updateFavoriteStarState(displayName);
 
         // 歷史事故
         const statsEntry = normalizedName ? this.roadStats.get(normalizedName) : null;
@@ -513,6 +556,9 @@ class RoutePlanner {
                 title: title || ''
             });
             this.clickMarker.addListener('dragend', () => this._handleClickMarkerDragend());
+            // Google Maps fires 'rightclick' for both an actual right-click
+            // and a long-press on touch devices — one listener covers both.
+            this.clickMarker.addListener('rightclick', () => this.clearInspectPin());
             return;
         }
 
@@ -571,6 +617,7 @@ class RoutePlanner {
                 title: '起點'
             });
             this.originMarker.addListener('dragend', () => this._handleOriginDragend());
+            this.originMarker.addListener('rightclick', () => this.clearOrigin());
         } else {
             this.originMarker.setPosition(normalized);
             this.originMarker.setMap(this.map);
@@ -615,6 +662,7 @@ class RoutePlanner {
                 title: '終點'
             });
             this.destinationMarker.addListener('dragend', () => this._handleDestinationMarkerDragend());
+            this.destinationMarker.addListener('rightclick', () => this.clearDestination());
         } else {
             this.destinationMarker.setPosition(latLng);
             this.destinationMarker.setMap(this.map);
@@ -1506,9 +1554,12 @@ class RoutePlanner {
     }
 
     /**
-     * Clear the current route from the map
+     * Clear whatever route is currently rendered (if any) and reset the
+     * "have a route" state. Shared by clearRoute() and the per-pin clear
+     * methods below, since removing either endpoint invalidates any route
+     * already planned between them.
      */
-    clearRoute() {
+    _clearRenderedRoute() {
         // Trigger feedback modal if a route was planned
         if (this.lastRoute) {
             console.log('📋 Route exists, showing feedback modal...');
@@ -1524,11 +1575,30 @@ class RoutePlanner {
             this.youbikeLayer.setRoutePath(null);
         }
 
+        this.lastRoute = null;
+        this.lastFinalResult = null;
+    }
+
+    /**
+     * 開始導航 is only shown while there's an actual destination to route to
+     * (destinationLatLng, or failing that the inspect pin) — recomputed after
+     * every clear so a partial clear (one pin only) doesn't leave it stuck
+     * showing/hiding incorrectly.
+     */
+    _updateNavBtnVisibility() {
+        const navBtn = document.getElementById('start-navigation-btn');
+        if (!navBtn) return;
+        navBtn.style.display = (this.destinationLatLng || this.pendingDestination) ? 'flex' : 'none';
+    }
+
+    /**
+     * Clear the current route from the map
+     */
+    clearRoute() {
+        this._clearRenderedRoute();
+
         document.getElementById('start-point').value = '';
         document.getElementById('end-point').value = '';
-
-        const navBtn = document.getElementById('start-navigation-btn');
-        if (navBtn) navBtn.style.display = 'none';
 
         if (this.clickMarker) {
             this.clickMarker.setMap(null);
@@ -1545,7 +1615,62 @@ class RoutePlanner {
         }
         this.destinationLatLng = null;
 
+        this._updateNavBtnVisibility();
+
         console.log('🗑️ Route cleared');
+    }
+
+    /**
+     * Remove just the INSPECT pin (right-click / long-press on it). Doesn't
+     * touch the committed origin/destination or any planned route — this is
+     * purely "I'm done looking at this spot".
+     */
+    clearInspectPin() {
+        if (this.clickMarker) {
+            this.clickMarker.setMap(null);
+        }
+        this.pendingDestination = null;
+        this.lastInspectedLatLng = null;
+        this.lastInspectedName = null;
+        this._updateNavBtnVisibility();
+    }
+
+    /**
+     * Remove the committed origin ("起" pin) — right-click / long-press on
+     * it. Invalidates any already-planned route (its origin no longer
+     * exists) but leaves the destination pin untouched.
+     */
+    clearOrigin() {
+        this._clearRenderedRoute();
+
+        if (this.originMarker) {
+            this.originMarker.setMap(null);
+        }
+        this.originLatLng = null;
+
+        const input = document.getElementById('start-point');
+        if (input) input.value = '';
+
+        this._updateNavBtnVisibility();
+    }
+
+    /**
+     * Remove the committed destination ("終" pin) — right-click / long-press
+     * on it. Invalidates any already-planned route but leaves the origin
+     * pin untouched.
+     */
+    clearDestination() {
+        this._clearRenderedRoute();
+
+        if (this.destinationMarker) {
+            this.destinationMarker.setMap(null);
+        }
+        this.destinationLatLng = null;
+
+        const input = document.getElementById('end-point');
+        if (input) input.value = '';
+
+        this._updateNavBtnVisibility();
     }
 
     /**

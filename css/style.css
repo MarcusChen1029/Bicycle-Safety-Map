@@ -22,6 +22,22 @@ body {
     /* Keep this to prevent body scroll */
 }
 
+/* Anchors the route dropdown to the bottom edge of the search bar. Sits above
+   the map and its controls (z-index 10) so the panel overlays them. Only
+   shown on the Map tab — script.js/routePlanner.js both just toggle
+   #view-map's "active" class on tab switches, so :has() picks that up
+   automatically regardless of which of them triggered the switch. */
+.search-area {
+    display: none;
+    position: relative;
+    z-index: 30;
+    flex-shrink: 0;
+}
+
+.container:has(#view-map.active) .search-area {
+    display: block;
+}
+
 .search-bar {
     height: auto;
     min-height: 60px;
@@ -76,6 +92,172 @@ body {
     color: #333;
 }
 
+/* 隨時可見的「避開危險區域」開關 —— 不用打開下拉面板也能切換 */
+.avoid-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 15px;
+    background: #fafafa;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+    color: #555;
+    cursor: pointer;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 22px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    inset: 0;
+    background-color: #ccc;
+    border-radius: 22px;
+    transition: background-color 0.2s;
+}
+
+.toggle-slider::before {
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    left: 2px;
+    top: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.toggle-switch input:checked+.toggle-slider {
+    background-color: #28a745;
+}
+
+.toggle-switch input:checked+.toggle-slider::before {
+    transform: translateX(16px);
+}
+
+.toggle-switch input:focus-visible+.toggle-slider {
+    outline: 2px solid #28a745;
+    outline-offset: 2px;
+}
+
+/* 從搜尋列下拉的路線規劃面板 —— 覆蓋在地圖上方，不擠壓版面 */
+.route-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border-bottom: 1px solid #ddd;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+    padding: 34px 15px 16px;
+    animation: route-dropdown-in 0.18s ease-out;
+}
+
+.route-dropdown-close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: #888;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.route-dropdown-close:hover {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+.route-dropdown[hidden] {
+    display: none;
+}
+
+@keyframes route-dropdown-in {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.route-dropdown input[type="text"] {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    background-color: #f9f9f9;
+    transition: all 0.2s ease;
+}
+
+.route-dropdown input[type="text"]:focus {
+    outline: none;
+    border-color: #28a745;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+}
+
+.route-dropdown-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.route-dropdown-actions button {
+    flex: 1;
+    padding: 11px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.route-dropdown-actions button#plan-route {
+    background-color: #28a745;
+    color: white;
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+}
+
+.route-dropdown-actions button#plan-route:hover {
+    background-color: #218838;
+}
+
+.route-dropdown-actions button#clear-route {
+    background-color: #f8f9fa;
+    color: #666;
+    border: 1px solid #ddd;
+}
+
+.route-dropdown-actions button#clear-route:hover {
+    background-color: #e2e6ea;
+    color: #333;
+}
+
 .search-bar button:last-child:hover {
     background-color: #e0e0e0;
 }
@@ -115,9 +297,34 @@ body {
     margin-bottom: 20px;
 }
 
+.detail-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .header {
     font-size: 20px;
     font-weight: bold;
+}
+
+.favorite-star-btn {
+    border: none;
+    background: transparent;
+    padding: 0;
+    font-size: 22px;
+    line-height: 1;
+    color: #ccc;
+    cursor: pointer;
+    transition: color 0.15s, transform 0.1s;
+}
+
+.favorite-star-btn:hover {
+    transform: scale(1.15);
+}
+
+.favorite-star-btn.is-favorited {
+    color: #f5b301;
 }
 
 .safety-level {
@@ -227,6 +434,13 @@ body {
     font-weight: 600;
     border-bottom: 2px solid #f0f0f0;
     padding-bottom: 10px;
+}
+
+.route-planner-hint {
+    margin: -5px 0 15px 0;
+    color: #888;
+    font-size: 13px;
+    line-height: 1.5;
 }
 
 .route-planner-page input[type="text"] {
@@ -752,7 +966,7 @@ textarea#report-desc:focus {
 }
 
 /* Hide elements when in navigation mode */
-body.nav-mode-active .search-bar,
+body.nav-mode-active .search-area,
 body.nav-mode-active .nav-bar,
 body.nav-mode-active .details,
 body.nav-mode-active #map-controls-container,

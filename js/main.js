@@ -72,6 +72,36 @@ class BikeMapApp {
   bindEvents() {
     // this.bikeLaneLayer.toggle(); // Prevent auto-hiding
 
+    // 從搜尋列下拉的路線規劃面板（起點/終點輸入就住在裡面）
+    const routeDropdown = document.getElementById('route-dropdown');
+    const searchArea = document.querySelector('.search-area');
+    const openRouteDropdown = () => {
+      if (routeDropdown) routeDropdown.hidden = false;
+    };
+    const closeRouteDropdown = () => {
+      if (routeDropdown) routeDropdown.hidden = true;
+    };
+    // 導航模式等其他流程也要能收起面板
+    this.closeRouteDropdown = closeRouteDropdown;
+
+    const closeDropdownBtn = document.getElementById('close-route-dropdown');
+    if (closeDropdownBtn) {
+      closeDropdownBtn.addEventListener('click', closeRouteDropdown);
+    }
+
+    // 點面板與搜尋列以外的地方就收起來。Google Places 的建議清單 (.pac-container)
+    // 掛在 <body> 上、不在 .search-area 內，若不排除，點建議會先關掉面板。
+    document.addEventListener('pointerdown', (e) => {
+      if (!routeDropdown || routeDropdown.hidden) return;
+      if (searchArea && searchArea.contains(e.target)) return;
+      if (e.target.closest && e.target.closest('.pac-container')) return;
+      closeRouteDropdown();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeRouteDropdown();
+    });
+
     // Route Planning Events
     const planBtn = document.getElementById('plan-route');
     const clearBtn = document.getElementById('clear-route');
@@ -80,6 +110,7 @@ class BikeMapApp {
       planBtn.addEventListener('click', () => {
         const startIdx = document.getElementById('start-point').value;
         const endIdx = document.getElementById('end-point').value;
+        closeRouteDropdown(); // 收起面板才看得到規劃出來的路線
         this.routePlanner.planRoute(startIdx, endIdx);
       });
     }
@@ -87,6 +118,7 @@ class BikeMapApp {
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
         this.routePlanner.clearRoute();
+        closeRouteDropdown();
       });
     }
 
@@ -96,6 +128,7 @@ class BikeMapApp {
     const searchClearBtn = document.getElementById('search-clear-btn');
 
     const runSearch = () => {
+      closeRouteDropdown(); // 讓搜尋結果的圖釘/面板不被蓋住
       if (searchInput) this.routePlanner.searchAndInspect(searchInput.value);
     };
 
@@ -106,11 +139,15 @@ class BikeMapApp {
       searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') runSearch();
       });
+      // 'click' 而非只有 'focus'：已經聚焦時再點一次也要能重新展開
+      searchInput.addEventListener('click', openRouteDropdown);
+      searchInput.addEventListener('focus', openRouteDropdown);
     }
     if (searchClearBtn) {
       searchClearBtn.addEventListener('click', () => {
         if (searchInput) searchInput.value = '';
         this.routePlanner.clearRoute();
+        closeRouteDropdown();
       });
     }
 
@@ -188,6 +225,7 @@ class BikeMapApp {
           this.currentNavStepIndex = 0;
           this._minDistanceToTurn = null;
 
+          closeRouteDropdown();
           document.body.classList.add('nav-mode-active');
           document.getElementById('nav-banner').style.display = 'flex';
 
@@ -448,6 +486,15 @@ class BikeMapApp {
           this.routePlanner.lastInspectedLatLng,
           this.routePlanner.lastInspectedName
         );
+      });
+    }
+
+    // 詳情面板：路名右邊的 ⭐ —— 把目前檢視中的地點加入常用地址
+    const favoriteStarBtn = document.getElementById('favorite-star-btn');
+    if (favoriteStarBtn) {
+      favoriteStarBtn.addEventListener('click', () => {
+        if (!this.routePlanner) return;
+        this.routePlanner.addFavoriteFromInspected();
       });
     }
 

@@ -14,11 +14,52 @@
 
 <body>
     <div class="container">
-        <div class="search-bar">
-            <input type="text" id="search-input" placeholder="搜尋地點或地址（例：台北101、忠孝東路）">
-            <div>
-                <button id="search-btn">Search</button>
-                <button id="search-clear-btn">Clear</button>
+        <div class="search-area">
+            <div class="search-bar">
+                <input type="text" id="search-input" placeholder="搜尋地點或地址（例：台北101、忠孝東路）">
+                <div>
+                    <button id="search-btn">Search</button>
+                    <button id="search-clear-btn">Clear</button>
+                </div>
+            </div>
+
+            <!-- Always-visible toggle — outside the dropdown so it can be
+                 flipped without opening the route panel. -->
+            <label class="avoid-toggle-row" for="avoid-dangerous">
+                <span>🛡️ 避開危險區域</span>
+                <span class="toggle-switch">
+                    <input type="checkbox" id="avoid-dangerous" checked>
+                    <span class="toggle-slider"></span>
+                </span>
+            </label>
+
+            <!-- Route planner, dropped down from the search bar (opens when the
+                 search input is tapped). These are THE origin/destination inputs —
+                 routePlanner.js/main.js reference #start-point and #end-point by
+                 id, so they must exist exactly once in the document. -->
+            <div id="route-dropdown" class="route-dropdown" hidden>
+                <button id="close-route-dropdown" class="route-dropdown-close" title="關閉" aria-label="關閉">&times;</button>
+                <div class="route-inputs-container"
+                    style="display: flex; align-items: stretch; gap: 10px; margin-bottom: 12px;">
+                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; gap: 4px;">
+                            <input type="text" id="start-point" placeholder="起點地址" style="margin-bottom: 0; flex: 1;">
+                            <button id="use-my-location-btn" title="使用目前位置"
+                                style="width: 40px; border: 1px solid #ddd; background: #f0f7ff; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;">
+                                <span style="font-size: 16px;">📍</span>
+                            </button>
+                        </div>
+                        <input type="text" id="end-point" placeholder="終點地址" style="margin-bottom: 0;">
+                    </div>
+                    <button id="swap-route-btn" title="對調起終點"
+                        style="width: 40px; border: 1px solid #ddd; background: #f8f9fa; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+                        <span style="font-size: 18px; color: #555; transform: rotate(90deg);">⇄</span>
+                    </button>
+                </div>
+                <div class="route-dropdown-actions">
+                    <button id="plan-route">規劃路線</button>
+                    <button id="clear-route">清除路線</button>
+                </div>
             </div>
         </div>
 
@@ -85,6 +126,8 @@
                 <div class="detail-header">
                     <div class="detail-label">
                         <span class="header"></span>
+                        <button id="favorite-star-btn" class="favorite-star-btn" title="加入常用地址"
+                            aria-label="加入常用地址">☆</button>
                     </div>
                     <div class="safety-level">
                         <span class="safety-level-label">友善等級:</span>
@@ -134,28 +177,8 @@
         <!-- Tab View: Route Suggestion -->
         <div class="view-pane" id="view-route">
             <div class="route-planner-page">
-                <h3>路線規劃</h3>
-                <div class="route-inputs-container"
-                    style="display: flex; align-items: stretch; gap: 10px; margin-bottom: 12px;">
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
-                        <div style="display: flex; gap: 4px;">
-                            <input type="text" id="start-point" placeholder="起點地址" style="margin-bottom: 0; flex: 1;">
-                            <button id="use-my-location-btn" title="使用目前位置"
-                                style="width: 40px; border: 1px solid #ddd; background: #f0f7ff; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;">
-                                <span style="font-size: 16px;">📍</span>
-                            </button>
-                        </div>
-                        <input type="text" id="end-point" placeholder="終點地址" style="margin-bottom: 0;">
-                    </div>
-                    <button id="swap-route-btn" title="對調起終點"
-                        style="width: 40px; border: 1px solid #ddd; background: #f8f9fa; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
-                        <span style="font-size: 18px; color: #555; transform: rotate(90deg);">⇄</span>
-                    </button>
-                </div>
-                <label style="display: flex; align-items: center; margin: 10px 0;">
-                    <input type="checkbox" id="avoid-dangerous" checked style="margin-right: 8px;">
-                    <span>🛡️ 避開危險區域</span>
-                </label>
+                <h3>常用地址</h3>
+                <p class="route-planner-hint">起點／終點的輸入已移到上方搜尋列——點一下搜尋列即可展開規劃面板。</p>
 
                 <div class="favorites-section">
                     <h4>⭐ 常用地址</h4>
@@ -167,11 +190,6 @@
                     <ul id="favorites-list" class="favorites-list">
                         <!-- Favorites will be injected here via JS -->
                     </ul>
-                </div>
-
-                <div style="display: flex; justify-content: space-between; margin-top: 15px;">
-                    <button id="plan-route">規劃路線</button>
-                    <button id="clear-route">清除路線</button>
                 </div>
             </div>
         </div>
@@ -251,7 +269,7 @@
 
         <div class="nav-bar">
             <div class="nav-item"><span>Map</span></div>
-            <div class="nav-item"><span>Route suggestion</span></div>
+            <div class="nav-item"><span>Favorites</span></div>
             <div class="nav-item"><span>Report</span></div>
             <div class="nav-item"><span>More</span></div>
         </div>
