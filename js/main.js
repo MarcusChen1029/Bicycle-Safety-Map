@@ -15,6 +15,11 @@ class BikeMapApp {
     // In-App Navigation State
     this.isNavigating = false;
     this.currentNavStepIndex = 0;
+
+    // How far (meters) the current GPS fix may drift from a reference point
+    // before it's treated as "out of range" — shared by the off-route
+    // reroute check (_checkRouteDeviation) and the 開始導航 origin fallback.
+    this._navRangeMeters = 300;
   }
 
   /**
@@ -51,6 +56,7 @@ class BikeMapApp {
 
       // Expose routePlanner globally for feedback modal access
       window._routePlannerRef = this.routePlanner;
+      window._appRef = this;
 
       this.bindEvents();
 
@@ -119,17 +125,53 @@ class BikeMapApp {
         // to navigate. This is the ONE place a map click can still trigger
         // the two-Directions-request route computation.
         if (!this.routePlanner.lastRoute) {
-          if (!this.routePlanner.pendingDestination) return; // nothing clicked yet
+          // 終點：優先用已提交的「終」，沒有的話退回目前檢視中的圖釘；
+          // 兩者都沒有就無法開始導航。
+          const destLatLng = this.routePlanner.destinationLatLng || this.routePlanner.pendingDestination;
+          if (!destLatLng) {
+            alert('請先點擊地圖選擇一個地點，或設定終點，才能開始導航。');
+            return;
+          }
+
+          // 起點：已提交的「起」若和目前 GPS 定位距離在 _navRangeMeters 內就沿用；
+          // 否則（未設定起點，或起點定位已偏出範圍）自動改用目前定位，並跳通知告知。
+          const curLatLng = this.currentPosition
+            ? new google.maps.LatLng(this.currentPosition.lat, this.currentPosition.lng)
+            : null;
+
+          let originLatLng = null;
+          if (this.routePlanner.originLatLng) {
+            if (!curLatLng) {
+              originLatLng = this.routePlanner.originLatLng; // 沒有定位可比對，只好信任已設定的起點
+            } else {
+              const distToOrigin = google.maps.geometry.spherical.computeDistanceBetween(curLatLng, this.routePlanner.originLatLng);
+              if (distToOrigin <= this._navRangeMeters) {
+                originLatLng = this.routePlanner.originLatLng;
+              }
+            }
+          }
+
+          let usedCurrentLocationAsOrigin = false;
+          if (!originLatLng) {
+            if (!curLatLng) {
+              alert('尚未取得目前定位，且未設定起點，無法開始導航。');
+              return;
+            }
+            originLatLng = curLatLng;
+            usedCurrentLocationAsOrigin = true;
+          }
+
+          if (usedCurrentLocationAsOrigin && typeof showFeedbackToast === 'function') {
+            showFeedbackToast('📍 已自動以目前位置作為起點');
+          }
 
           const originalLabel = startNavBtn.textContent;
           startNavBtn.disabled = true;
           startNavBtn.textContent = '規劃中…';
 
           try {
-            const pos = this.currentPosition || { lat: 25.0478, lng: 121.5170 };
-            const origin = `${pos.lat}, ${pos.lng}`;
-            const dest = this.routePlanner.pendingDestination;
-            const destination = `${dest.lat()}, ${dest.lng()}`;
+            const origin = `${originLatLng.lat()}, ${originLatLng.lng()}`;
+            const destination = `${destLatLng.lat()}, ${destLatLng.lng()}`;
             await this.routePlanner.planRoute(origin, destination);
           } catch (e) {
             console.error('開始導航：規劃路線失敗', e);
@@ -723,8 +765,8 @@ class BikeMapApp {
         const dist = google.maps.geometry.spherical.computeDistanceBetween(currentLoc, path[i]);
         if (dist < minDistance) minDistance = dist;
     }
-    // 容忍值 300 公尺
-    return minDistance > 300;
+    // 容忍值（見 constructor 的 _navRangeMeters）
+    return minDistance > this._navRangeMeters;
   }
 
   async _handleReroute(currentLoc) {

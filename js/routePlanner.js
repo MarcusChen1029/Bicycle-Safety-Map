@@ -50,8 +50,10 @@ class RoutePlanner {
         // slow/older geocode can never overwrite a newer click's render.
         this._destinationToken = 0;
 
-        // Pin marking the spot the user clicked to inspect; recolored with
-        // the 友善等級 once the road-level evaluation resolves.
+        // Pin marking the spot the user clicked to INSPECT; recolored with
+        // the 友善等級 once the road-level evaluation resolves. Inspect-only —
+        // never represents a committed origin/destination, so a later click
+        // elsewhere can freely move it without disturbing 起/終.
         this.clickMarker = null;
 
         // Committed origin: set via setOrigin() (設為起點 button, GPS
@@ -59,6 +61,16 @@ class RoutePlanner {
         // pendingDestination/clickMarker, which track the INSPECT flow.
         this.originLatLng = null;
         this.originMarker = null;
+
+        // Committed destination: set via setDestinationCommitted() (設為終點
+        // button or autocomplete on #end-point). Gets its own "終" pin,
+        // separate from clickMarker, so it only moves via setDestinationCommitted()
+        // or dragging — never as a side effect of inspecting a different spot.
+        this.destinationLatLng = null;
+        this.destinationMarker = null;
+
+        // How long a cached BICYCLING Directions result stays valid within this tab.
+        this._directionsCacheTTL = 5 * 60 * 1000; // 5 minutes
 
         // Most recently INSPECTED spot (map click / search / autocomplete on
         // the destination side) — this is what the 設為起點/設為終點 panel
@@ -91,6 +103,25 @@ class RoutePlanner {
      * the road-level 歷史事故 bar just falls back to "no data" for every road.
      */
     async _loadRoadStats() {
+        const CACHE_KEY = 'road_stats_cache_v1';
+        const CACHE_TTL = 24 * 60 * 60 * 1000; // road_stats.json changes rarely — 1 day is safe
+
+        let usedCache = false;
+        try {
+            const raw = localStorage.getItem(CACHE_KEY);
+            if (raw) {
+                const { ts, roads } = JSON.parse(raw);
+                this.roadStats = new Map(Object.entries(roads || {}));
+                usedCache = true;
+                console.log(`🛣️ Loaded ${this.roadStats.size} road stats from cache`);
+                if ((Date.now() - ts) < CACHE_TTL) {
+                    return; // fresh enough — skip the network fetch entirely
+                }
+            }
+        } catch (e) {
+            // Corrupt/unavailable cache — fall through to the network fetch below.
+        }
+
         try {
             const response = await fetch('data/road_stats.json');
             const json = await response.json();
@@ -100,9 +131,14 @@ class RoutePlanner {
             }
             this.roadStats = map;
             console.log(`🛣️ Loaded ${this.roadStats.size} road stats for road-level evaluation`);
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), roads: json.roads || {} }));
+            } catch (e) {
+                // Storage full/unavailable — non-fatal, in-memory data still works.
+            }
         } catch (e) {
             console.error('Failed to load road stats:', e);
-            this.roadStats = new Map();
+            if (!usedCache) this.roadStats = new Map();
         }
     }
 
@@ -476,7 +512,7 @@ class RoutePlanner {
                 zIndex: 999, // above the heatmap, YouBike and report markers
                 title: title || ''
             });
-            this.clickMarker.addListener('dragend', () => this._handleDestinationDragend());
+            this.clickMarker.addListener('dragend', () => this._handleClickMarkerDragend());
             return;
         }
 
@@ -545,21 +581,56 @@ class RoutePlanner {
             input.value = label || `${normalized.lat().toFixed(6)}, ${normalized.lng().toFixed(6)}`;
         }
 
-        if (this.originLatLng && this.pendingDestination) {
+        if (this.originLatLng && this.destinationLatLng) {
             this._maybeAutoPlan();
         }
     }
 
     /**
-     * Commit `latLng` as the real ROUTING destination. Reuses the existing
+     * Place/move the dedicated "終" pin marking the COMMITTED destination —
+     * mirrors setOrigin()'s "起" pin. Kept separate from clickMarker (the
+     * INSPECT-only pin) precisely so that inspecting a different spot later
+     * never moves it; it only moves via drag or another setDestinationCommitted() call.
+     * @param {google.maps.LatLng} latLng
+     */
+    _showDestinationMarker(latLng) {
+        const icon = {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 12,
+            fillColor: '#dc3545',
+            fillOpacity: 1,
+            strokeColor: '#fff',
+            strokeWeight: 2
+        };
+        const markerLabel = { text: '終', color: '#fff', fontSize: '12px', fontWeight: 'bold' };
+
+        if (!this.destinationMarker) {
+            this.destinationMarker = new google.maps.Marker({
+                map: this.map,
+                position: latLng,
+                icon,
+                label: markerLabel,
+                draggable: true,
+                zIndex: 998, // below clickMarker (999), above layers
+                title: '終點'
+            });
+            this.destinationMarker.addListener('dragend', () => this._handleDestinationMarkerDragend());
+        } else {
+            this.destinationMarker.setPosition(latLng);
+            this.destinationMarker.setMap(this.map);
+        }
+    }
+
+    /**
+     * Commit `latLng` as the real ROUTING destination. Runs the existing
      * INSPECT pipeline (setDestination -> reverse geocode -> road-level
-     * grade -> _showClickMarker) so the destination pin keeps showing the
-     * road's 友善等級 color rather than introducing a second, plain marker
-     * type — this is the "reuse the grading pin" choice called out in the
-     * commit body. `label`, when given (panel button using the
-     * already-inspected name, or an autocomplete place name), pre-fills
-     * #end-point immediately for instant feedback; the reverse geocode
-     * inside setDestination then confirms/refines it moments later.
+     * grade) so the details panel updates immediately, then gives the
+     * destination its own dedicated "終" pin (_showDestinationMarker) and
+     * hides the now-redundant inspect pin at the same spot. `label`, when
+     * given (panel button using the already-inspected name, or an
+     * autocomplete place name), pre-fills #end-point immediately for
+     * instant feedback; the reverse geocode inside setDestination then
+     * confirms/refines it moments later.
      * @param {google.maps.LatLng|{lat:number,lng:number}} latLng
      * @param {string} [label]
      */
@@ -573,12 +644,11 @@ class RoutePlanner {
 
         this.setDestination(normalized);
 
-        // clickMarker is created draggable (see _showClickMarker) with its
-        // dragend handler wired at creation time, so nothing extra is
-        // needed here beyond making sure it stays draggable across reuse.
-        if (this.clickMarker) this.clickMarker.setDraggable(true);
+        this.destinationLatLng = normalized;
+        this._showDestinationMarker(normalized);
+        if (this.clickMarker) this.clickMarker.setMap(null);
 
-        if (this.originLatLng && this.pendingDestination) {
+        if (this.originLatLng && this.destinationLatLng) {
             this._maybeAutoPlan();
         }
     }
@@ -593,9 +663,9 @@ class RoutePlanner {
      * pipeline repaints exactly as if 規劃路線 had been pressed.
      */
     _maybeAutoPlan() {
-        if (!this.originLatLng || !this.pendingDestination) return;
+        if (!this.originLatLng || !this.destinationLatLng) return;
         const originStr = `${this.originLatLng.lat()},${this.originLatLng.lng()}`;
-        const destStr = `${this.pendingDestination.lat()},${this.pendingDestination.lng()}`;
+        const destStr = `${this.destinationLatLng.lat()},${this.destinationLatLng.lng()}`;
         this.planRoute(originStr, destStr);
     }
 
@@ -617,16 +687,14 @@ class RoutePlanner {
     }
 
     /**
-     * clickMarker's dragend handler, for the case where it represents a
-     * COMMITTED destination (as opposed to a not-yet-committed inspect
-     * pin — dragging either is harmless, this just keeps pendingDestination
-     * and the road-level grade in sync with wherever the pin ends up).
-     * Re-plans immediately (if origin is also set) using the new position,
-     * then refreshes #end-point's text and the 友善等級 grade once the
-     * reverse geocode resolves.
+     * destinationMarker's ("終") dragend handler. Re-plans immediately (if
+     * origin is also committed) using the new position, then refreshes
+     * #end-point's text and the 友善等級 grade once the reverse geocode
+     * resolves.
      */
-    _handleDestinationDragend() {
-        const newPos = this.clickMarker.getPosition();
+    _handleDestinationMarkerDragend() {
+        const newPos = this.destinationMarker.getPosition();
+        this.destinationLatLng = newPos;
         this.pendingDestination = newPos;
         this.lastInspectedLatLng = newPos;
 
@@ -646,6 +714,25 @@ class RoutePlanner {
             if (!willAutoPlan) {
                 this._renderRoadLevelEvaluation(newPos, displayName, normalizedName);
             }
+        });
+    }
+
+    /**
+     * clickMarker's dragend handler. This pin is INSPECT-ONLY (the "終" pin
+     * is a separate marker — see _showDestinationMarker), so dragging it
+     * just re-evaluates the road-level grade at the new spot; it never
+     * touches the committed origin/destination or triggers a re-plan.
+     */
+    _handleClickMarkerDragend() {
+        const newPos = this.clickMarker.getPosition();
+        this.pendingDestination = newPos;
+        this.lastInspectedLatLng = newPos;
+
+        this._reverseGeocodeRoadName(newPos).then(({ displayName, normalizedName, formattedAddress }) => {
+            const input = document.getElementById('end-point');
+            if (input) input.value = formattedAddress || displayName;
+            this.lastInspectedName = displayName;
+            this._renderRoadLevelEvaluation(newPos, displayName, normalizedName);
         });
     }
 
@@ -1358,15 +1445,64 @@ class RoutePlanner {
      * Helper to wrap callback-based direction service in a Promise
      */
     calculateRoute(request) {
+        // Live-traffic (driving-mode) requests must never be served from cache —
+        // caching would freeze the congestion ratio at whatever it was minutes ago.
+        const cacheKey = request.drivingOptions ? null : this._directionsCacheKey(request);
+        if (cacheKey) {
+            const cached = this._readDirectionsCache(cacheKey);
+            if (cached) return Promise.resolve(cached);
+        }
         return new Promise((resolve, reject) => {
             this.directionsService.route(request, (result, status) => {
                 if (status === google.maps.DirectionsStatus.OK) {
+                    if (cacheKey) this._writeDirectionsCache(cacheKey, result);
                     resolve(result);
                 } else {
                     reject(new Error(status));
                 }
             });
         });
+    }
+
+    /**
+     * Stable cache key for a Directions request. Returns null (= don't cache)
+     * if the request can't be serialized, rather than risk a bad cache hit.
+     */
+    _directionsCacheKey(request) {
+        try {
+            return JSON.stringify({
+                o: request.origin,
+                d: request.destination,
+                m: request.travelMode,
+                w: request.waypoints,
+                ah: request.avoidHighways,
+                at: request.avoidTolls
+            });
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // sessionStorage, not localStorage: route quality/road conditions can
+    // change day to day, so a cached Directions result should not outlive the tab.
+    _readDirectionsCache(key) {
+        try {
+            const raw = sessionStorage.getItem('dircache:' + key);
+            if (!raw) return null;
+            const { ts, result } = JSON.parse(raw);
+            if ((Date.now() - ts) > this._directionsCacheTTL) return null;
+            return result;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    _writeDirectionsCache(key, result) {
+        try {
+            sessionStorage.setItem('dircache:' + key, JSON.stringify({ ts: Date.now(), result }));
+        } catch (e) {
+            // Storage full/quota, or a non-serializable field — non-fatal, just skip caching.
+        }
     }
 
     /**
@@ -1403,6 +1539,11 @@ class RoutePlanner {
             this.originMarker.setMap(null);
         }
         this.originLatLng = null;
+
+        if (this.destinationMarker) {
+            this.destinationMarker.setMap(null);
+        }
+        this.destinationLatLng = null;
 
         console.log('🗑️ Route cleared');
     }
