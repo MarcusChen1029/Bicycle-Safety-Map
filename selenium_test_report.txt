@@ -1,0 +1,26 @@
+Bicycle Safety Map — Selenium test report
+Generated: 2026-07-05T11:45:42
+Summary: 17 passed, 0 failed, 1 warnings
+
+Checks:
+  [PASS] health / map-initialized — window._routePlannerRef.youbikeLayer present
+  [PASS] health / button:toggle-youbike-btn — YouBike 圖層 可見且可點
+  [PASS] health / button:toggle-youbike-route-btn — 單車模式 可見且可點
+  [PASS] health / button:toggle-bikelane-btn — 自行車道 可見且可點
+  [PASS] health / button:toggle-spoofer-btn — 模擬器 可見且可點
+  [PASS] health / youbike-data — 載入 1768 個站點
+  [PASS] health / youbike-toggle — visible True→False→True
+  [PASS] feedback / open-modal — 回饋視窗開啟，5 顆星就緒
+  [PASS] feedback / zero-star-guard — 未評分即送出被擋下：'請先點選星數！'
+  [PASS] feedback / star-select — 選 4 星 → 4 顆點亮, 文字 '4★ 良好'
+  [PASS] feedback / submit — 送出後視窗關閉（未偵測到 toast）
+  [PASS] report / open-tab — 回報問題分頁開啟，表單可見
+  [PASS] report / fields — 類型/描述/地點/送出 欄位齊全
+  [PASS] report / validate-type — 未選類型被擋下：'請選擇問題類型！'
+  [PASS] report / validate-desc — 空描述被擋下：'請填寫問題描述！'
+  [PASS] report / submit — 略過真實送出（預設不寫入正式 Firestore；--submit-report 可開啟）
+  [WARN] logs / console-error — http://127.0.0.1:8080/js/roadScoreDB.js 57:14 "❌ Failed to load road scores:" FirebaseError: Missing or insufficient permissions.
+  [PASS] logs / network-failure — 沒有失敗的網路請求
+
+Problems found:
+  (WARN) logs/console-error: http://127.0.0.1:8080/js/roadScoreDB.js 57:14 "❌ Failed to load road scores:" FirebaseError: Missing or insufficient permissions.
