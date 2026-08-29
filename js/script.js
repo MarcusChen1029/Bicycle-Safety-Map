@@ -17,14 +17,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add active class to clicked nav item
             item.classList.add('active');
 
-            // Show corresponding pane (Map = 0, Route = 1)
-            // Show corresponding pane (Map = 0, Route = 1, Report = 2)
+            // Show corresponding pane (Map = 0, Route = 1, Report = 2, More = 3)
             if (index === 0 && document.getElementById('view-map')) {
                 document.getElementById('view-map').classList.add('active');
             } else if (index === 1 && document.getElementById('view-route')) {
                 document.getElementById('view-route').classList.add('active');
             } else if (index === 2 && document.getElementById('view-report')) {
                 document.getElementById('view-report').classList.add('active');
+            } else if (index === 3 && document.getElementById('view-more')) {
+                document.getElementById('view-more').classList.add('active');
             }
         });
     });
@@ -91,6 +92,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 submitReportBtn.disabled = false;
                 submitReportBtn.textContent = '送出回報';
             }
+        });
+    }
+
+    // More tab: clear locally cached road stats / road score data
+    const clearCacheBtn = document.getElementById('clear-cache-btn');
+    if (clearCacheBtn) {
+        clearCacheBtn.addEventListener('click', () => {
+            localStorage.removeItem('road_stats_cache_v1');
+            localStorage.removeItem('road_scores_cache_v1');
+            alert('快取已清除，重新整理頁面後將重新載入最新資料。');
         });
     }
 

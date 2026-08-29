@@ -139,6 +139,9 @@
                         style="flex: 1; padding: 10px; border: 1px solid #28a745; border-radius: 5px; background: white; color: #28a745; font-weight: bold; cursor: pointer;">設為起點</button>
                     <button id="set-as-dest"
                         style="flex: 1; padding: 10px; border: 1px solid #dc3545; border-radius: 5px; background: white; color: #dc3545; font-weight: bold; cursor: pointer;">設為終點</button>
+                    <button id="report-issue-btn"
+                        style="flex: 1; padding: 10px; border: 1px solid #fd7e14; border-radius: 5px; background: white; color: #fd7e14; font-weight: bold; cursor: pointer;">🚩
+                        舉報</button>
                 </div>
                 <div class="stats">
                     <!-- stats items remain same -->
@@ -235,6 +238,47 @@
             </div>
         </div>
 
+        <!-- Tab View: More -->
+        <div class="view-pane" id="view-more">
+            <div class="report-page">
+                <button id="start-tour-btn"
+                    style="width: 100%; padding: 12px; margin-bottom: 24px; background-color: #28a745; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer;">▶️ 新手教學</button>
+
+                <h3>友善等級圖例</h3>
+                <p class="report-desc">路線與道路的評分依 基礎設施、交通環境風險、歷史事故、民眾意見 四項加權計算，對應下列等級：</p>
+                <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="width: 28px; height: 28px; border-radius: 6px; background: #28a745; flex-shrink: 0;"></span>
+                        <span><b>A</b>（分數 &gt; 72）— 非常友善</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="width: 28px; height: 28px; border-radius: 6px; background: #daff07; flex-shrink: 0;"></span>
+                        <span><b>B</b>（分數 &gt; 60）— 友善</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="width: 28px; height: 28px; border-radius: 6px; background: #dc8e35; flex-shrink: 0;"></span>
+                        <span><b>C</b>（分數 &gt; 48）— 普通</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="width: 28px; height: 28px; border-radius: 6px; background: #ff0000; flex-shrink: 0;"></span>
+                        <span><b>D</b>（分數 &gt; 36）— 欠佳</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="width: 28px; height: 28px; border-radius: 6px; background: #000; flex-shrink: 0;"></span>
+                        <span><b>E</b>（分數 &le; 36）— 不友善</span>
+                    </div>
+                </div>
+
+                <h3>資料快取</h3>
+                <p class="report-desc">道路統計與評分資料會快取在本機瀏覽器中以加快載入速度。若資料顯示異常，可清除快取重新抓取最新資料。</p>
+                <button id="clear-cache-btn"
+                    style="width: 100%; padding: 12px; margin-bottom: 24px; background-color: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; cursor: pointer;">清除快取資料</button>
+
+                <h3>關於</h3>
+                <p class="report-desc">Bicycle Safety Map 協助騎士規劃更安全的自行車路線，結合道路基礎設施、事故熱點與社群回饋，標示每段路的友善等級。歡迎透過「回報問題」與「騎乘回饋」持續改善資料品質。</p>
+            </div>
+        </div>
+
         <!-- Feedback Modal -->
         <div id="feedback-modal" class="feedback-modal-overlay" style="display: none;">
             <div class="feedback-modal">
@@ -290,6 +334,7 @@
     <script src="js/config.js"></script>
     <script src="js/script.js"></script>
     <script src="js/main.js"></script>
+    <script src="js/onboarding.js"></script>
     <script src="js/map_init.js"></script>
     <script src="js/bikeLane.js"></script>
     <script src="js/accidentLayer.js"></script>

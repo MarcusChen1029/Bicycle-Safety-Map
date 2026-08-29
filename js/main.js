@@ -498,6 +498,41 @@ class BikeMapApp {
       });
     }
 
+    // 詳情面板：🚩 舉報 —— 跳轉至回報問題頁面，並自動帶入目前檢視地點
+    const reportIssueBtn = document.getElementById('report-issue-btn');
+    if (reportIssueBtn) {
+      reportIssueBtn.addEventListener('click', () => {
+        if (!this.routePlanner || !this.routePlanner.lastInspectedLatLng) {
+          alert('請先點擊地圖選擇要舉報的地點。');
+          return;
+        }
+        const latLng = this.routePlanner.lastInspectedLatLng;
+        const lat = latLng.lat();
+        const lng = latLng.lng();
+
+        const reportLocInput = document.getElementById('report-location');
+        if (reportLocInput) {
+          // Coordinates first so the field is resolvable even if the geocode below fails.
+          reportLocInput.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+              reportLocInput.value = results[0].formatted_address;
+            }
+          });
+        }
+
+        const reportDescInput = document.getElementById('report-desc');
+        if (reportDescInput && this.routePlanner.lastInspectedName) {
+          reportDescInput.value = `於「${this.routePlanner.lastInspectedName}」發現：`;
+        }
+
+        // Jump to the Report tab (nav-item index 2 — see script.js tab switching).
+        const navItems = document.querySelectorAll('.nav-item');
+        if (navItems[2]) navItems[2].click();
+      });
+    }
+
     // Close Details Panel
     const closeDetailsBtn = document.getElementById('close-details');
     if (closeDetailsBtn) {

@@ -1061,3 +1061,98 @@ body.nav-mode-active .map {
 @keyframes spinnerRotate {
     to { transform: rotate(360deg); }
 }
+
+/* ================================================================
+   新手教學 Onboarding Tour
+   ================================================================ */
+.tour-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+}
+
+.tour-spotlight {
+    position: fixed;
+    border-radius: 10px;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+    transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+}
+
+.tour-tooltip {
+    position: fixed;
+    width: 260px;
+    max-width: calc(100vw - 24px);
+    background: white;
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.tour-tooltip.tour-visible {
+    opacity: 1;
+}
+
+.tour-tooltip.tour-tooltip-center {
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+}
+
+.tour-tooltip-title {
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 6px;
+    color: #222;
+}
+
+.tour-tooltip-text {
+    font-size: 14px;
+    color: #555;
+    line-height: 1.5;
+    margin-bottom: 12px;
+}
+
+.tour-progress {
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 10px;
+}
+
+.tour-tooltip-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tour-tooltip-actions-right {
+    display: flex;
+    gap: 8px;
+}
+
+.tour-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.tour-btn-ghost {
+    background: transparent;
+    color: #777;
+}
+
+.tour-btn-primary {
+    background: #28a745;
+    color: white;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tour-spotlight,
+    .tour-tooltip {
+        transition: none;
+    }
+}
