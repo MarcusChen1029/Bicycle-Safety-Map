@@ -79,8 +79,8 @@ class AccidentLayer {
         this.heatmap = new google.maps.visualization.HeatmapLayer({
             data: heatmapData,
             map: this.map,
-            // 降低 radius 可以大幅減少重疊計算帶來的 lag
-            radius: 30,
+            // radius 隨縮放調整，見 radiusForZoom()。
+            radius: this.radiusForZoom(this.map.getZoom()),
             opacity: 0.6,
             gradient: CONFIG.accidents.heatmapOptions.gradient || [
                 'rgba(0, 255, 0, 0)',
@@ -92,7 +92,32 @@ class AccidentLayer {
             ]
         });
 
+        this.map.addListener('zoom_changed', () => {
+            if (this.heatmap) {
+                this.heatmap.set('radius', this.radiusForZoom(this.map.getZoom()));
+            }
+        });
+
         console.log(`✅ Google Maps 熱力圖建立完成 (顯示 ${severeAccidents.length} 件事故)`);
+    }
+
+    /**
+     * HeatmapLayer 的 radius 是「螢幕像素」常數（dissipating 預設 true），跟縮放
+     * 無關；放大時同樣的 30px 涵蓋的實際範圍越來越小，熱點就縮成一個點。
+     *
+     * 內建的 dissipating:false 會改用固定地理範圍，但本圖層的縮放範圍是 zoom
+     * 13(預設總覽)~18(街道)，像素半徑相差 32 倍：要在 13 看得見就得放大到
+     * zoom 18 破圖（超出 tile 尺寸會出現硬接縫，已實測），兩端無法兼顧。
+     *
+     * 因此改用介於兩者之間的曲線：以 zoom 15 = 30px 為基準，每級 ×1.5（比固定
+     * 像素會長大、又比固定地理範圍溫和），並夾在 18~110px 之間 —— 下限保住總覽
+     * 視圖的可見度，上限避開 tile 接縫。
+     * @param {number} zoom
+     * @returns {number} 像素半徑
+     */
+    radiusForZoom(zoom) {
+        const radius = 30 * Math.pow(1.5, (zoom || 15) - 15);
+        return Math.round(Math.min(110, Math.max(18, radius)));
     }
 
     getSampleData() {
