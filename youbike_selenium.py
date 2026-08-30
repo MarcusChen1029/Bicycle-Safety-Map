@@ -59,7 +59,6 @@ CONTROL_BUTTONS = {
     "toggle-youbike-btn": "YouBike 圖層",
     "toggle-youbike-route-btn": "單車模式",
     "toggle-bikelane-btn": "自行車道",
-    "toggle-spoofer-btn": "模擬器",
 }
 
 

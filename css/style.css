@@ -580,12 +580,7 @@ body {
     border: 1px solid #ddd;
     border-radius: 6px;
     margin-bottom: 6px;
-    cursor: pointer;
     transition: background 0.2s;
-}
-
-.favorites-list li:hover {
-    background: #e9ecef;
 }
 
 .fav-info {
@@ -607,6 +602,46 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 200px;
+}
+
+.fav-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.fav-set-origin,
+.fav-set-dest {
+    width: 28px !important;
+    height: 28px;
+    padding: 0 !important;
+    border-radius: 50%;
+    border: none;
+    color: #fff !important;
+    font-size: 12px !important;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: none !important;
+}
+
+/* 顏色對應地圖上的「起」「終」圖釘，選哪個按鈕就落哪個圖釘 */
+.fav-set-origin {
+    background-color: #28a745 !important;
+}
+
+.fav-set-origin:hover {
+    background-color: #1e7e34 !important;
+    transform: none;
+}
+
+.fav-set-dest {
+    background-color: #dc3545 !important;
+}
+
+.fav-set-dest:hover {
+    background-color: #a71d2a !important;
+    transform: none;
 }
 
 .fav-delete {
@@ -976,46 +1011,6 @@ body.nav-mode-active #start-navigation-btn {
 
 body.nav-mode-active .map {
     height: 100vh !important;
-}
-
-/* Virtual Joystick */
-.virtual-joystick {
-    position: absolute;
-    bottom: 100px;
-    right: 20px;
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.9);
-    padding: 10px;
-    border-radius: 50%;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    gap: 5px;
-}
-
-.joy-row {
-    display: flex;
-    gap: 5px;
-}
-
-.joy-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: none;
-    background: #f0f0f0;
-    font-size: 16px;
-    cursor: pointer;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-.joy-btn:active {
-    background: #e0e0e0;
-    transform: scale(0.95);
 }
 
 /* Road checklist in feedback modal */

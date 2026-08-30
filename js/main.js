@@ -107,11 +107,35 @@ class BikeMapApp {
     const clearBtn = document.getElementById('clear-route');
 
     if (planBtn) {
-      planBtn.addEventListener('click', () => {
-        const startIdx = document.getElementById('start-point').value;
-        const endIdx = document.getElementById('end-point').value;
+      planBtn.addEventListener('click', async () => {
+        if (!this.routePlanner) return;
+
+        const startVal = document.getElementById('start-point').value.trim();
+        const endVal = document.getElementById('end-point').value.trim();
+        if (!startVal || !endVal) {
+          alert('請輸入起點與終點地址。');
+          return;
+        }
         closeRouteDropdown(); // 收起面板才看得到規劃出來的路線
-        this.routePlanner.planRoute(startIdx, endIdx);
+
+        // 手動輸入的地址文字先各自解析成座標，再委由 setOrigin/
+        // setDestinationCommitted 落下起/終圖釘 —— 直接把文字丟給
+        // planRoute() 雖然規劃得出路線，但不會留下任何圖釘可供辨識/清除。
+        try {
+          const [originLatLng, destLatLng] = await Promise.all([
+            this.routePlanner._resolveToLatLng(startVal),
+            this.routePlanner._resolveToLatLng(endVal)
+          ]);
+          // 避免 setOrigin() 先用「舊」終點自動規劃一次、setDestinationCommitted
+          // 再用新終點規劃第二次：先清掉舊終點座標，讓自動規劃只在兩者都是
+          // 新值時觸發一次。
+          this.routePlanner.destinationLatLng = null;
+          this.routePlanner.setOrigin(originLatLng, startVal);
+          this.routePlanner.setDestinationCommitted(destLatLng, endVal);
+        } catch (e) {
+          console.error('規劃路線：地址解析失敗', e);
+          alert('無法辨識起點或終點地址，請確認後再試一次。');
+        }
       });
     }
 
@@ -252,137 +276,6 @@ class BikeMapApp {
         }
       });
     }
-
-    // Spoofer Toggle
-    const toggleSpooferBtn = document.getElementById('toggle-spoofer-btn');
-    const virtualJoystick = document.getElementById('virtual-joystick');
-    
-    // WASD Smooth Movement State
-    this.keysPressed = { w: false, a: false, s: false, d: false };
-    this.isSpooferActive = false;
-    
-    const smoothSpoofSpeed = 0.00003;
-    const smoothSpoofLoop = () => {
-      if (!this.isSpooferActive) return;
-      
-      let dLat = 0;
-      let dLng = 0;
-      if (this.keysPressed.w) dLat += smoothSpoofSpeed;
-      if (this.keysPressed.s) dLat -= smoothSpoofSpeed;
-      if (this.keysPressed.a) dLng -= smoothSpoofSpeed;
-      if (this.keysPressed.d) dLng += smoothSpoofSpeed;
-
-      if (dLat !== 0 || dLng !== 0) {
-        if (!this.currentPosition) {
-          this.currentPosition = { lat: 25.0478, lng: 121.5170, accuracy: 10, heading: 0, speed: 0 };
-        }
-        // Calculate heading
-        const heading = Math.atan2(dLng, dLat) * 180 / Math.PI;
-        this.handlePositionUpdate({
-          coords: {
-            latitude: this.currentPosition.lat + dLat,
-            longitude: this.currentPosition.lng + dLng,
-            accuracy: 10,
-            heading: heading >= 0 ? heading : heading + 360,
-            speed: 15
-          }
-        });
-      }
-      requestAnimationFrame(smoothSpoofLoop);
-    };
-
-    if (toggleSpooferBtn && virtualJoystick) {
-      toggleSpooferBtn.addEventListener('click', () => {
-        if (virtualJoystick.style.display === 'none') {
-          virtualJoystick.style.display = 'flex';
-          toggleSpooferBtn.style.background = '#ffeeba';
-          this.isSpooferActive = true;
-          if (this.watchId !== null) {
-            navigator.geolocation.clearWatch(this.watchId);
-            this.watchId = null;
-          }
-          // Start WASD animation loop
-          requestAnimationFrame(smoothSpoofLoop);
-        } else {
-          virtualJoystick.style.display = 'none';
-          toggleSpooferBtn.style.background = '#fff3cd';
-          this.isSpooferActive = false;
-          // Reset keys
-          this.keysPressed = { w: false, a: false, s: false, d: false };
-          this.startLocationTracking();
-        }
-      });
-    }
-
-    // Keyboard Listeners
-    window.addEventListener('keydown', (e) => {
-      const key = e.key.toLowerCase();
-      if (this.isSpooferActive && this.keysPressed.hasOwnProperty(key)) {
-        this.keysPressed[key] = true;
-      }
-    });
-
-    window.addEventListener('keyup', (e) => {
-      const key = e.key.toLowerCase();
-      if (this.isSpooferActive && this.keysPressed.hasOwnProperty(key)) {
-        this.keysPressed[key] = false;
-      }
-    });
-
-    const moveStep = 0.0001; // 約 11 公尺
-    const moveFake = (dLat, dLng) => {
-      if (!this.currentPosition) {
-        this.currentPosition = { lat: 25.0478, lng: 121.5170, accuracy: 10, heading: 0, speed: 0 };
-      }
-      this.handlePositionUpdate({
-        coords: {
-          latitude: this.currentPosition.lat + dLat,
-          longitude: this.currentPosition.lng + dLng,
-          accuracy: 10,
-          heading: 0,
-          speed: 5
-        }
-      });
-    };
-
-    // Keep UI buttons working smoothly too
-    let holdInterval;
-    const startHold = (dLat, dLng) => {
-      moveFake(dLat, dLng);
-      holdInterval = setInterval(() => moveFake(dLat, dLng), 50);
-    };
-    const stopHold = () => clearInterval(holdInterval);
-
-    ['up', 'down', 'left', 'right'].forEach(dir => {
-      const btn = document.getElementById(`joy-${dir}`);
-      if (!btn) return;
-      const offsets = {
-        'up': [smoothSpoofSpeed*2, 0], 'down': [-smoothSpoofSpeed*2, 0],
-        'left': [0, -smoothSpoofSpeed*2], 'right': [0, smoothSpoofSpeed*2]
-      };
-      btn.addEventListener('mousedown', () => startHold(offsets[dir][0], offsets[dir][1]));
-      btn.addEventListener('mouseup', stopHold);
-      btn.addEventListener('mouseleave', stopHold);
-      btn.addEventListener('touchstart', (e) => { e.preventDefault(); startHold(offsets[dir][0], offsets[dir][1]); });
-      btn.addEventListener('touchend', (e) => { e.preventDefault(); stopHold(); });
-    });
-    
-    document.getElementById('joy-teleport')?.addEventListener('click', () => {
-      if (this.routePlanner && this.routePlanner.lastRoute) {
-        const startLoc = this.routePlanner.lastRoute.legs[0].start_location;
-        this.handlePositionUpdate({
-          coords: {
-            latitude: startLoc.lat(),
-            longitude: startLoc.lng(),
-            accuracy: 10,
-            heading: 0,
-            speed: 0
-          }
-        });
-      } else {
-        alert('請先規劃路線！');
-      }
-    });
 
     // Swap Origin and Destination
     const swapBtn = document.getElementById('swap-route-btn');

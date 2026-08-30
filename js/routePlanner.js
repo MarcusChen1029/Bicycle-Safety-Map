@@ -263,6 +263,29 @@ class RoutePlanner {
             infoDiv.className = 'fav-info';
             infoDiv.innerHTML = `<span class="fav-name">${fav.name}</span><span class="fav-addr" title="${fav.address}">${fav.address}</span>`;
 
+            // 選取常用地址後，使用者才決定要設為起點還是終點 —— 兩顆按鈕的顏色
+            // 對應地圖上「起」「終」圖釘的顏色，選了哪個就落哪個圖釘。
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'fav-actions';
+
+            const originBtn = document.createElement('button');
+            originBtn.className = 'fav-set-origin';
+            originBtn.textContent = '起';
+            originBtn.title = '設為起點';
+            originBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.setFavoriteAsOrigin(fav.address);
+            };
+
+            const destBtn = document.createElement('button');
+            destBtn.className = 'fav-set-dest';
+            destBtn.textContent = '終';
+            destBtn.title = '設為終點';
+            destBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.setFavoriteAsDestination(fav.address);
+            };
+
             // Delete button
             const delBtn = document.createElement('button');
             delBtn.className = 'fav-delete';
@@ -270,28 +293,55 @@ class RoutePlanner {
             delBtn.title = '刪除此地址';
             delBtn.onclick = (e) => this.deleteFavorite(fav.id, e);
 
-            // Click to use address
-            li.onclick = () => this.useFavoriteAddress(fav.address);
+            actionsDiv.appendChild(originBtn);
+            actionsDiv.appendChild(destBtn);
+            actionsDiv.appendChild(delBtn);
 
             li.appendChild(infoDiv);
-            li.appendChild(delBtn);
+            li.appendChild(actionsDiv);
             listEl.appendChild(li);
         });
     }
 
     /**
-     * Fill the end-point input with the clicked favorite address
+     * 常用地址 →「起」按鈕：解析地址/座標字串後委由 setOrigin() 落下起點
+     * 圖釘；若終點已設定，setOrigin() 會依既有邏輯自動觸發 planRoute()。
+     * @param {string} address
      */
-    useFavoriteAddress(address) {
-        const endInput = document.getElementById('end-point');
-        if (endInput) {
-            endInput.value = address;
-            // Focus on the start input since they probably need to type that next, or just let them hit plan
-            const startInput = document.getElementById('start-point');
-            if (startInput && !startInput.value) {
-                startInput.focus();
-            }
+    async setFavoriteAsOrigin(address) {
+        try {
+            const latLng = await this._resolveToLatLng(address);
+            this.setOrigin(latLng, address);
+            this._switchToMapTab();
+        } catch (e) {
+            console.error('常用地址設為起點失敗:', e);
+            alert('無法辨識此常用地址，請確認後再試一次。');
         }
+    }
+
+    /**
+     * 常用地址 →「終」按鈕：與 setFavoriteAsOrigin 相對，落下終點圖釘。
+     * @param {string} address
+     */
+    async setFavoriteAsDestination(address) {
+        try {
+            const latLng = await this._resolveToLatLng(address);
+            this.setDestinationCommitted(latLng, address);
+            this._switchToMapTab();
+        } catch (e) {
+            console.error('常用地址設為終點失敗:', e);
+            alert('無法辨識此常用地址，請確認後再試一次。');
+        }
+    }
+
+    /**
+     * Switch back to the Map tab (nav-item index 0) so a pin just dropped
+     * from the Favorites tab is immediately visible — mirrors planRoute()'s
+     * own auto-switch-to-map on success.
+     */
+    _switchToMapTab() {
+        const navItems = document.querySelectorAll('.nav-item');
+        if (navItems[0]) navItems[0].click();
     }
 
     /**

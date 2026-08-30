@@ -68,10 +68,6 @@
             <div class="map">
                 <div style="position: absolute; top: 10px; right: 10px; z-index: 10; display: flex; flex-direction: column; gap: 10px;"
                     id="map-controls-container">
-                    <button id="toggle-spoofer-btn" class="map-control-btn"
-                        style="padding: 8px 12px; border-radius: 8px; border: none; background: #fff3cd; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; font-weight: bold; transition: background 0.2s;">
-                        <span>🎮</span> 模擬器
-                    </button>
                     <button id="toggle-youbike-btn" class="map-control-btn"
                         style="padding: 8px 12px; border-radius: 8px; border: none; background: #e6f4ea; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; font-weight: bold; transition: background 0.2s;">
                         <span>🚲</span> YouBike層
@@ -84,21 +80,6 @@
                         style="padding: 8px 12px; border-radius: 8px; border: none; background: #e6f4ea; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; font-weight: bold; transition: background 0.2s;">
                         <span>🛣️</span> 自行車道
                     </button>
-                </div>
-
-                <!-- Virtual Joystick for Spoofing -->
-                <div id="virtual-joystick" class="virtual-joystick" style="display: none;">
-                    <div class="joy-row">
-                        <button class="joy-btn" id="joy-up">▲</button>
-                    </div>
-                    <div class="joy-row">
-                        <button class="joy-btn" id="joy-left">◀</button>
-                        <button class="joy-btn" id="joy-teleport" title="傳送到起點">📍</button>
-                        <button class="joy-btn" id="joy-right">▶</button>
-                    </div>
-                    <div class="joy-row">
-                        <button class="joy-btn" id="joy-down">▼</button>
-                    </div>
                 </div>
 
                 <!-- Navigation Banner (Hidden by default) -->
