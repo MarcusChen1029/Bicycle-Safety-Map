@@ -78,18 +78,30 @@ body {
     transition: background 0.3s;
 }
 
-.search-bar button:first-child {
+#search-btn {
     background-color: #28a745;
     color: white;
 }
 
-.search-bar button:first-child:hover {
+#search-btn:hover {
     background-color: #218838;
 }
 
-.search-bar button:last-child {
+#search-clear-btn {
     background-color: #f0f0f0;
     color: #333;
+}
+
+#lang-toggle-btn {
+    min-width: 44px;
+    background-color: #fff;
+    color: #28a745;
+    border: 1px solid #28a745;
+    font-weight: bold;
+}
+
+#lang-toggle-btn:hover {
+    background-color: #e9f7ec;
 }
 
 /* 隨時可見的「避開危險區域」開關 —— 不用打開下拉面板也能切換 */
@@ -258,7 +270,7 @@ body {
     color: #333;
 }
 
-.search-bar button:last-child:hover {
+#search-clear-btn:hover {
     background-color: #e0e0e0;
 }
 

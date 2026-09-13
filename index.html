@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bicycle Safety map</title>
+    <title data-i18n="app.title">自行車安全地圖</title>
     <link rel="stylesheet" href="css/style.css">
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/12.12.0/firebase-app-compat.js"></script>
@@ -16,17 +16,20 @@
     <div class="container">
         <div class="search-area">
             <div class="search-bar">
-                <input type="text" id="search-input" placeholder="搜尋地點或地址（例：台北101、忠孝東路）">
+                <input type="text" id="search-input" placeholder="搜尋地點或地址（例：台北101、忠孝東路）" data-i18n-placeholder="search.placeholder">
                 <div>
-                    <button id="search-btn">Search</button>
-                    <button id="search-clear-btn">Clear</button>
+                    <button id="search-btn" data-i18n="common.search">搜尋</button>
+                    <button id="search-clear-btn" data-i18n="common.clear">清除</button>
+                    <button id="lang-toggle-btn" type="button" data-i18n="lang.toggle"
+                        title="切換為英文" aria-label="切換為英文"
+                        data-i18n-title="lang.toggleAria" data-i18n-aria-label="lang.toggleAria">EN</button>
                 </div>
             </div>
 
             <!-- Always-visible toggle — outside the dropdown so it can be
                  flipped without opening the route panel. -->
             <label class="avoid-toggle-row" for="avoid-dangerous">
-                <span>🛡️ 避開危險區域</span>
+                <span data-i18n="avoid.label">🛡️ 避開危險區域</span>
                 <span class="toggle-switch">
                     <input type="checkbox" id="avoid-dangerous" checked>
                     <span class="toggle-slider"></span>
@@ -38,27 +41,27 @@
                  routePlanner.js/main.js reference #start-point and #end-point by
                  id, so they must exist exactly once in the document. -->
             <div id="route-dropdown" class="route-dropdown" hidden>
-                <button id="close-route-dropdown" class="route-dropdown-close" title="關閉" aria-label="關閉">&times;</button>
+                <button id="close-route-dropdown" class="route-dropdown-close" title="關閉" aria-label="關閉" data-i18n-title="common.close" data-i18n-aria-label="common.close">&times;</button>
                 <div class="route-inputs-container"
                     style="display: flex; align-items: stretch; gap: 10px; margin-bottom: 12px;">
                     <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
                         <div style="display: flex; gap: 4px;">
-                            <input type="text" id="start-point" placeholder="起點地址" style="margin-bottom: 0; flex: 1;">
-                            <button id="use-my-location-btn" title="使用目前位置"
+                            <input type="text" id="start-point" placeholder="起點地址" style="margin-bottom: 0; flex: 1;" data-i18n-placeholder="route.startPlaceholder">
+                            <button id="use-my-location-btn" title="使用目前位置" data-i18n-title="route.useMyLocation"
                                 style="width: 40px; border: 1px solid #ddd; background: #f0f7ff; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;">
                                 <span style="font-size: 16px;">📍</span>
                             </button>
                         </div>
-                        <input type="text" id="end-point" placeholder="終點地址" style="margin-bottom: 0;">
+                        <input type="text" id="end-point" placeholder="終點地址" style="margin-bottom: 0;" data-i18n-placeholder="route.endPlaceholder">
                     </div>
-                    <button id="swap-route-btn" title="對調起終點"
+                    <button id="swap-route-btn" title="對調起終點" data-i18n-title="route.swap"
                         style="width: 40px; border: 1px solid #ddd; background: #f8f9fa; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
                         <span style="font-size: 18px; color: #555; transform: rotate(90deg);">⇄</span>
                     </button>
                 </div>
                 <div class="route-dropdown-actions">
-                    <button id="plan-route">規劃路線</button>
-                    <button id="clear-route">清除路線</button>
+                    <button id="plan-route" data-i18n="route.plan">規劃路線</button>
+                    <button id="clear-route" data-i18n="route.clearRoute">清除路線</button>
                 </div>
             </div>
         </div>
@@ -70,15 +73,15 @@
                     id="map-controls-container">
                     <button id="toggle-youbike-btn" class="map-control-btn"
                         style="padding: 8px 12px; border-radius: 8px; border: none; background: #e6f4ea; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; font-weight: bold; transition: background 0.2s;">
-                        <span>🚲</span> YouBike層
+                        <span>🚲</span> <span data-i18n="app.toggleYoubikeLayer">YouBike層</span>
                     </button>
                     <button id="toggle-youbike-route-btn" class="map-control-btn"
                         style="padding: 8px 12px; border-radius: 8px; border: none; background: #e6f4ea; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; font-weight: bold; transition: background 0.2s;">
-                        <span>🚲</span> Youbike模式
+                        <span>🚲</span> <span data-i18n="app.toggleYoubikeMode">Youbike模式</span>
                     </button>
                     <button id="toggle-bikelane-btn" class="map-control-btn"
                         style="padding: 8px 12px; border-radius: 8px; border: none; background: #e6f4ea; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; font-weight: bold; transition: background 0.2s;">
-                        <span>🛣️</span> 自行車道
+                        <span>🛣️</span> <span data-i18n="app.toggleBikelane">自行車道</span>
                     </button>
                 </div>
 
@@ -88,16 +91,16 @@
                         <div class="nav-icon" id="nav-icon">⬆️</div>
                         <div class="nav-info">
                             <div class="nav-distance" id="nav-distance">-- m</div>
-                            <div class="nav-instruction" id="nav-instruction">準備導航中...</div>
+                            <div class="nav-instruction" id="nav-instruction"><span data-i18n="nav.preparing">準備導航中...</span></div>
                         </div>
                     </div>
-                    <button id="end-navigation-btn" class="end-navigation-btn">結束</button>
+                    <button id="end-navigation-btn" class="end-navigation-btn" data-i18n="common.end">結束</button>
                 </div>
 
                 <div id="map"></div>
                 <button id="start-navigation-btn" class="start-navigation-btn"
                     style="display: none; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10; padding: 12px 24px; background-color: #4285f4; color: white; border: none; border-radius: 24px; font-size: 16px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3); cursor: pointer; align-items: center; gap: 8px;">
-                    <span style="font-size: 20px;">🧭</span> 開始導航
+                    <span style="font-size: 20px;">🧭</span> <span data-i18n="nav.start">開始導航</span>
                 </button>
             </div>
 
@@ -108,47 +111,46 @@
                     <div class="detail-label">
                         <span class="header"></span>
                         <button id="favorite-star-btn" class="favorite-star-btn" title="加入常用地址"
-                            aria-label="加入常用地址">☆</button>
+                            aria-label="加入常用地址" data-i18n-title="fav.add" data-i18n-aria-label="fav.add">☆</button>
                     </div>
                     <div class="safety-level">
-                        <span class="safety-level-label">友善等級:</span>
+                        <span class="safety-level-label" data-i18n="stats.friendlinessLabel">友善等級:</span>
                         <span class="level">--</span>
                     </div>
                 </div>
                 <div class="details-actions" style="display: flex; gap: 8px; margin-bottom: 15px;">
-                    <button id="set-as-origin"
+                    <button id="set-as-origin" data-i18n="route.setOrigin"
                         style="flex: 1; padding: 10px; border: 1px solid #28a745; border-radius: 5px; background: white; color: #28a745; font-weight: bold; cursor: pointer;">設為起點</button>
-                    <button id="set-as-dest"
+                    <button id="set-as-dest" data-i18n="route.setDest"
                         style="flex: 1; padding: 10px; border: 1px solid #dc3545; border-radius: 5px; background: white; color: #dc3545; font-weight: bold; cursor: pointer;">設為終點</button>
-                    <button id="report-issue-btn"
-                        style="flex: 1; padding: 10px; border: 1px solid #fd7e14; border-radius: 5px; background: white; color: #fd7e14; font-weight: bold; cursor: pointer;">🚩
-                        舉報</button>
+                    <button id="report-issue-btn" data-i18n="report.flagButton"
+                        style="flex: 1; padding: 10px; border: 1px solid #fd7e14; border-radius: 5px; background: white; color: #fd7e14; font-weight: bold; cursor: pointer;">🚩 舉報</button>
                 </div>
                 <div class="stats">
                     <!-- stats items remain same -->
                     <div class="stats-item">
-                        <span class="stats-name">基礎設施</span>
+                        <span class="stats-name" data-i18n="stats.infrastructure">基礎設施</span>
                         <div class="progress-bg">
                             <div class="progress-fill" style="width: 0%;"></div>
                         </div>
                         <span class="score">--</span>
                     </div>
                     <div class="stats-item">
-                        <span class="stats-name">交通環境風險</span>
+                        <span class="stats-name" data-i18n="stats.trafficRisk">交通環境風險</span>
                         <div class="progress-bg">
                             <div class="progress-fill" style="width: 0%;"></div>
                         </div>
                         <span class="score">--</span>
                     </div>
                     <div class="stats-item">
-                        <span class="stats-name">歷史事故</span>
+                        <span class="stats-name" data-i18n="stats.accidentHistory">歷史事故</span>
                         <div class="progress-bg">
                             <div class="progress-fill" style="width: 0%;"></div>
                         </div>
                         <span class="score">--</span>
                     </div>
                     <div class="stats-item">
-                        <span class="stats-name">民眾意見</span>
+                        <span class="stats-name" data-i18n="stats.publicFeedback">民眾意見</span>
                         <div class="progress-bg">
                             <div class="progress-fill" style="width: 0%;"></div>
                         </div>
@@ -161,14 +163,14 @@
         <!-- Tab View: Route Suggestion -->
         <div class="view-pane" id="view-route">
             <div class="route-planner-page">
-                <h3>常用地址</h3>
-                <p class="route-planner-hint">起點／終點的輸入已移到上方搜尋列——點一下搜尋列即可展開規劃面板。</p>
+                <h3 data-i18n="fav.heading">常用地址</h3>
+                <p class="route-planner-hint" data-i18n="route.hint">起點／終點的輸入已移到上方搜尋列——點一下搜尋列即可展開規劃面板。</p>
 
                 <div class="favorites-section">
-                    <h4>⭐ 常用地址</h4>
+                    <h4 data-i18n="fav.subheading">⭐ 常用地址</h4>
                     <div class="add-favorite-bar">
-                        <input type="text" id="new-favorite-name" placeholder="名稱 (例如: 家、公司)">
-                        <input type="text" id="new-favorite-addr" placeholder="完整地址">
+                        <input type="text" id="new-favorite-name" placeholder="名稱 (例如: 家、公司)" data-i18n-placeholder="fav.namePlaceholder">
+                        <input type="text" id="new-favorite-addr" placeholder="完整地址" data-i18n-placeholder="fav.addrPlaceholder">
                         <button id="add-favorite-btn">+</button>
                     </div>
                     <ul id="favorites-list" class="favorites-list">
@@ -181,40 +183,40 @@
         <!-- Tab View: Report Issue -->
         <div class="view-pane" id="view-report">
             <div class="report-page">
-                <h3>回報問題</h3>
-                <p class="report-desc">協助改善騎乘環境，請填寫下方資訊以回報道路狀況：</p>
+                <h3 data-i18n="report.heading">回報問題</h3>
+                <p class="report-desc" data-i18n="report.desc">協助改善騎乘環境，請填寫下方資訊以回報道路狀況：</p>
 
-                <label>問題類型</label>
+                <label data-i18n="report.typeLabel">問題類型</label>
                 <select id="report-type" class="report-select"
                     style="margin-bottom: 12px; width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; background: #f9f9f9; font-size: 14px;">
-                    <option value="" disabled selected>請選擇問題類型</option>
-                    <option value="pothole">路面坑洞</option>
-                    <option value="illegal_parking">違規停車 (佔用自行車道)</option>
-                    <option value="obstacle">道路障礙物</option>
-                    <option value="faded_lines">標線模糊或毀損</option>
-                    <option value="accident">事故發生</option>
-                    <option value="other">其他</option>
+                    <option value="" disabled selected data-i18n="report.selectTypeOption">請選擇問題類型</option>
+                    <option value="pothole" data-i18n="report.type.pothole">路面坑洞</option>
+                    <option value="illegal_parking" data-i18n="report.type.illegalParkingOption">違規停車 (佔用自行車道)</option>
+                    <option value="obstacle" data-i18n="report.type.obstacle">道路障礙物</option>
+                    <option value="faded_lines" data-i18n="report.type.fadedLines">標線模糊或毀損</option>
+                    <option value="accident" data-i18n="report.type.accident">事故發生</option>
+                    <option value="other" data-i18n="report.type.other">其他</option>
                 </select>
 
-                <label>發生地點</label>
+                <label data-i18n="report.locationLabel">發生地點</label>
                 <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                     <input type="text" id="report-location" placeholder="點擊右側按鈕取得目前位置或自行輸入"
-                        style="flex: 1; padding: 12px; margin-bottom: 0; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;">
-                    <button id="get-location-btn" title="取得目前位置"
+                        style="flex: 1; padding: 12px; margin-bottom: 0; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;" data-i18n-placeholder="report.locationPlaceholder">
+                    <button id="get-location-btn" title="取得目前位置" data-i18n-title="report.getLocation"
                         style="width: 44px; border: 1px solid #ddd; background: #f8f9fa; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                         <span style="font-size: 18px;">📍</span>
                     </button>
                 </div>
 
-                <label style="display: block;">問題描述</label>
+                <label style="display: block;" data-i18n="report.descLabel">問題描述</label>
                 <textarea id="report-desc" placeholder="請簡短描述現場狀況..." rows="4"
-                    style="width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #ddd; background: #f9f9f9; font-size: 14px; resize: vertical;"></textarea>
+                    style="width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #ddd; background: #f9f9f9; font-size: 14px; resize: vertical;" data-i18n-placeholder="report.descPlaceholder"></textarea>
 
-                <label style="display: block;">上傳照片 (選填)</label>
+                <label style="display: block;" data-i18n="report.photoLabel">上傳照片 (選填)</label>
                 <input type="file" id="report-photo" accept="image/*" class="report-file-input"
                     style="margin-bottom: 20px;">
 
-                <button id="submit-report-btn" class="submit-report-button"
+                <button id="submit-report-btn" class="submit-report-button" data-i18n="report.submit"
                     style="width: 100%; padding: 14px; background-color: #28a745; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s;">送出回報</button>
             </div>
         </div>
@@ -222,41 +224,41 @@
         <!-- Tab View: More -->
         <div class="view-pane" id="view-more">
             <div class="report-page">
-                <button id="start-tour-btn"
+                <button id="start-tour-btn" data-i18n="tour.start"
                     style="width: 100%; padding: 12px; margin-bottom: 24px; background-color: #28a745; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer;">▶️ 新手教學</button>
 
-                <h3>友善等級圖例</h3>
-                <p class="report-desc">路線與道路的評分依 基礎設施、交通環境風險、歷史事故、民眾意見 四項加權計算，對應下列等級：</p>
+                <h3 data-i18n="legend.heading">友善等級圖例</h3>
+                <p class="report-desc" data-i18n="legend.desc">路線與道路的評分依 基礎設施、交通環境風險、歷史事故、民眾意見 四項加權計算，對應下列等級：</p>
                 <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px;">
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="width: 28px; height: 28px; border-radius: 6px; background: #28a745; flex-shrink: 0;"></span>
-                        <span><b>A</b>（分數 &gt; 72）— 非常友善</span>
+                        <span data-i18n-html="legend.gradeA"><b>A</b>（分數 &gt; 72）— 非常友善</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="width: 28px; height: 28px; border-radius: 6px; background: #daff07; flex-shrink: 0;"></span>
-                        <span><b>B</b>（分數 &gt; 60）— 友善</span>
+                        <span data-i18n-html="legend.gradeB"><b>B</b>（分數 &gt; 60）— 友善</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="width: 28px; height: 28px; border-radius: 6px; background: #dc8e35; flex-shrink: 0;"></span>
-                        <span><b>C</b>（分數 &gt; 48）— 普通</span>
+                        <span data-i18n-html="legend.gradeC"><b>C</b>（分數 &gt; 48）— 普通</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="width: 28px; height: 28px; border-radius: 6px; background: #ff0000; flex-shrink: 0;"></span>
-                        <span><b>D</b>（分數 &gt; 36）— 欠佳</span>
+                        <span data-i18n-html="legend.gradeD"><b>D</b>（分數 &gt; 36）— 欠佳</span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="width: 28px; height: 28px; border-radius: 6px; background: #000; flex-shrink: 0;"></span>
-                        <span><b>E</b>（分數 &le; 36）— 不友善</span>
+                        <span data-i18n-html="legend.gradeE"><b>E</b>（分數 &le; 36）— 不友善</span>
                     </div>
                 </div>
 
-                <h3>資料快取</h3>
-                <p class="report-desc">道路統計與評分資料會快取在本機瀏覽器中以加快載入速度。若資料顯示異常，可清除快取重新抓取最新資料。</p>
-                <button id="clear-cache-btn"
+                <h3 data-i18n="cache.heading">資料快取</h3>
+                <p class="report-desc" data-i18n="cache.desc">道路統計與評分資料會快取在本機瀏覽器中以加快載入速度。若資料顯示異常，可清除快取重新抓取最新資料。</p>
+                <button id="clear-cache-btn" data-i18n="cache.clear"
                     style="width: 100%; padding: 12px; margin-bottom: 24px; background-color: #f8f9fa; color: #333; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; cursor: pointer;">清除快取資料</button>
 
-                <h3>關於</h3>
-                <p class="report-desc">Bicycle Safety Map 協助騎士規劃更安全的自行車路線，結合道路基礎設施、事故熱點與社群回饋，標示每段路的友善等級。歡迎透過「回報問題」與「騎乘回饋」持續改善資料品質。</p>
+                <h3 data-i18n="about.heading">關於</h3>
+                <p class="report-desc" data-i18n="about.desc">Bicycle Safety Map 協助騎士規劃更安全的自行車路線，結合道路基礎設施、事故熱點與社群回饋，標示每段路的友善等級。歡迎透過「回報問題」與「騎乘回饋」持續改善資料品質。</p>
             </div>
         </div>
 
@@ -265,12 +267,12 @@
             <div class="feedback-modal">
                 <div class="feedback-modal-header">
                     <span class="feedback-modal-icon">🚴</span>
-                    <h3>騎乘回饋</h3>
-                    <p class="feedback-modal-subtitle">請根據您的實際騎乘體驗評分</p>
+                    <h3 data-i18n="feedback.heading">騎乘回饋</h3>
+                    <p class="feedback-modal-subtitle" data-i18n="feedback.subtitle">請根據您的實際騎乘體驗評分</p>
                 </div>
                 <div class="feedback-modal-body">
                     <div class="feedback-rating-group">
-                        <label class="feedback-rating-label">🚴 整體騎乘體驗</label>
+                        <label class="feedback-rating-label" data-i18n="feedback.overallLabel">🚴 整體騎乘體驗</label>
                         <div class="feedback-stars" data-dimension="overall">
                             <span class="feedback-star" data-value="1">★</span>
                             <span class="feedback-star" data-value="2">★</span>
@@ -278,25 +280,25 @@
                             <span class="feedback-star" data-value="4">★</span>
                             <span class="feedback-star" data-value="5">★</span>
                         </div>
-                        <span class="feedback-score-text" id="overall-score-text">尚未評分</span>
+                        <span class="feedback-score-text" id="overall-score-text" data-i18n="feedback.score0">尚未評分</span>
                     </div>
                     <div id="feedback-road-checklist" class="feedback-road-checklist" style="display: none;">
-                        <label class="feedback-rating-label">哪幾條路不好？（勾選後送出）</label>
+                        <label class="feedback-rating-label" data-i18n="feedback.roadChecklistLabel">哪幾條路不好？（勾選後送出）</label>
                         <div id="feedback-road-list" class="feedback-road-list"></div>
                     </div>
                 </div>
                 <div class="feedback-modal-actions">
-                    <button id="feedback-submit-btn" class="feedback-btn feedback-btn-submit">送出回饋</button>
-                    <button id="feedback-skip-btn" class="feedback-btn feedback-btn-skip">跳過</button>
+                    <button id="feedback-submit-btn" class="feedback-btn feedback-btn-submit" data-i18n="feedback.submit">送出回饋</button>
+                    <button id="feedback-skip-btn" class="feedback-btn feedback-btn-skip" data-i18n="common.skip">跳過</button>
                 </div>
             </div>
         </div>
 
         <div class="nav-bar">
-            <div class="nav-item"><span>Map</span></div>
-            <div class="nav-item"><span>Favorites</span></div>
-            <div class="nav-item"><span>Report</span></div>
-            <div class="nav-item"><span>More</span></div>
+            <div class="nav-item"><span data-i18n="tabs.map">地圖</span></div>
+            <div class="nav-item"><span data-i18n="tabs.favorites">常用</span></div>
+            <div class="nav-item"><span data-i18n="tabs.report">回報</span></div>
+            <div class="nav-item"><span data-i18n="tabs.more">更多</span></div>
         </div>
     </div>
 
@@ -308,7 +310,7 @@
     <!-- Loading overlay shown during multi-second operations (route planning). -->
     <div id="loading-overlay" role="status" aria-live="polite" aria-hidden="true">
         <div class="loading-spinner"></div>
-        <span class="loading-text">規劃路線中…</span>
+        <span class="loading-text" data-i18n="route.planning">規劃路線中…</span>
     </div>
 
     <script src="js/roadScoreDB.js"></script>
