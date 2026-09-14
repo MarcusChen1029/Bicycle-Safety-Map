@@ -636,17 +636,6 @@ class RoutePlanner {
     }
 
     /**
-     * Commit `latLng` as the real ROUTING origin — distinct from the
-     * INSPECT-only flow (setDestination/clickMarker). Drops/moves a GREEN
-     * "起" pin so the origin is never visually confused with the
-     * grade-colored destination pin. Auto-plans the route once both
-     * endpoints are set (see _maybeAutoPlan).
-     * @param {google.maps.LatLng|{lat:number,lng:number}} latLng
-     * @param {string} [label] - text to fill #start-point with; falls back
-     *   to a formatted "lat, lng" string when omitted (e.g. GPS fix with no
-     *   reverse-geocoded address yet).
-     */
-    /**
      * Language switched: rebuild the favorites list and relabel the pins in
      * place. Don't go through setOrigin()/_showDestinationMarker() — they
      * also move the pins and can re-trigger route planning.
@@ -663,6 +652,17 @@ class RoutePlanner {
         }
     }
 
+    /**
+     * Commit `latLng` as the real ROUTING origin — distinct from the
+     * INSPECT-only flow (setDestination/clickMarker). Drops/moves a GREEN
+     * "起" pin so the origin is never visually confused with the
+     * grade-colored destination pin. Auto-plans the route once both
+     * endpoints are set (see _maybeAutoPlan).
+     * @param {google.maps.LatLng|{lat:number,lng:number}} latLng
+     * @param {string} [label] - text to fill #start-point with; falls back
+     *   to a formatted "lat, lng" string when omitted (e.g. GPS fix with no
+     *   reverse-geocoded address yet).
+     */
     setOrigin(latLng, label) {
         const normalized = this._toLatLng(latLng);
         this.originLatLng = normalized;

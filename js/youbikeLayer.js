@@ -178,7 +178,7 @@ class YoubikeLayer {
     // English mode uses the API's own English station name when it has one.
     stationName(station) {
         const name = I18N.getLang() === 'en' && station.snaen ? station.snaen : station.sna;
-        return name.replace('YouBike2.0_', '');
+        return (name || '').replace('YouBike2.0_', '');
     }
 
     createMarker(station, lat, lng) {

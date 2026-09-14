@@ -367,6 +367,7 @@ const I18N = (() => {
 
   const ATTR_WRITERS = [
     ['data-i18n', (el, s) => { el.textContent = s; }],
+    // innerHTML: dictionary markup only — never put user data in data-i18n-params here.
     ['data-i18n-html', (el, s) => { el.innerHTML = s; }],
     ['data-i18n-placeholder', (el, s) => { el.placeholder = s; }],
     ['data-i18n-title', (el, s) => { el.title = s; }],
