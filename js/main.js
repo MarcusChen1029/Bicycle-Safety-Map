@@ -59,6 +59,7 @@ class BikeMapApp {
       window._appRef = this;
 
       this.bindEvents();
+      window.addEventListener('langchange', () => this._onLangChange());
 
       // 啟動 GPS 即時追蹤
       this.startLocationTracking();
@@ -66,7 +67,7 @@ class BikeMapApp {
       console.log('✅ 應用程式初始化完成！');
     } catch (error) {
       console.error('❌ 初始化失敗:', error);
-      alert('應用程式初始化失敗，請檢查控制台');
+      alert(I18N.t('app.initFailed'));
     }
   }
   bindEvents() {
@@ -113,7 +114,7 @@ class BikeMapApp {
         const startVal = document.getElementById('start-point').value.trim();
         const endVal = document.getElementById('end-point').value.trim();
         if (!startVal || !endVal) {
-          alert('請輸入起點與終點地址。');
+          alert(I18N.t('route.missingEndpoints'));
           return;
         }
         closeRouteDropdown(); // 收起面板才看得到規劃出來的路線
@@ -134,7 +135,7 @@ class BikeMapApp {
           this.routePlanner.setDestinationCommitted(destLatLng, endVal);
         } catch (e) {
           console.error('規劃路線：地址解析失敗', e);
-          alert('無法辨識起點或終點地址，請確認後再試一次。');
+          alert(I18N.t('route.addressResolveFailed'));
         }
       });
     }
@@ -190,7 +191,7 @@ class BikeMapApp {
           // 兩者都沒有就無法開始導航。
           const destLatLng = this.routePlanner.destinationLatLng || this.routePlanner.pendingDestination;
           if (!destLatLng) {
-            alert('請先點擊地圖選擇一個地點，或設定終點，才能開始導航。');
+            alert(I18N.t('nav.noDestination'));
             return;
           }
 
@@ -215,7 +216,7 @@ class BikeMapApp {
           let usedCurrentLocationAsOrigin = false;
           if (!originLatLng) {
             if (!curLatLng) {
-              alert('尚未取得目前定位，且未設定起點，無法開始導航。');
+              alert(I18N.t('nav.noLocationNoOrigin'));
               return;
             }
             originLatLng = curLatLng;
@@ -226,9 +227,9 @@ class BikeMapApp {
             showFeedbackToast('nav.autoOrigin');
           }
 
-          const originalLabel = startNavBtn.textContent;
+          const startNavLabel = startNavBtn.querySelector('[data-i18n]');
           startNavBtn.disabled = true;
-          startNavBtn.textContent = '規劃中…';
+          if (startNavLabel) I18N.setText(startNavLabel, 'nav.planning');
 
           try {
             const origin = `${originLatLng.lat()}, ${originLatLng.lng()}`;
@@ -239,7 +240,7 @@ class BikeMapApp {
             return; // no route -> don't enter nav mode
           } finally {
             startNavBtn.disabled = false;
-            startNavBtn.textContent = originalLabel;
+            if (startNavLabel) I18N.setText(startNavLabel, 'nav.start');
           }
         }
 
@@ -358,7 +359,7 @@ class BikeMapApp {
     if (setAsOriginBtn) {
       setAsOriginBtn.addEventListener('click', () => {
         if (!this.routePlanner || !this.routePlanner.lastInspectedLatLng) {
-          alert('請先點擊地圖或搜尋一個地點。');
+          alert(I18N.t('common.noInspectedLocation'));
           return;
         }
         this.routePlanner.setOrigin(
@@ -372,7 +373,7 @@ class BikeMapApp {
     if (setAsDestBtn) {
       setAsDestBtn.addEventListener('click', () => {
         if (!this.routePlanner || !this.routePlanner.lastInspectedLatLng) {
-          alert('請先點擊地圖或搜尋一個地點。');
+          alert(I18N.t('common.noInspectedLocation'));
           return;
         }
         this.routePlanner.setDestinationCommitted(
@@ -396,7 +397,7 @@ class BikeMapApp {
     if (reportIssueBtn) {
       reportIssueBtn.addEventListener('click', () => {
         if (!this.routePlanner || !this.routePlanner.lastInspectedLatLng) {
-          alert('請先點擊地圖選擇要舉報的地點。');
+          alert(I18N.t('report.noLocationSelected'));
           return;
         }
         const latLng = this.routePlanner.lastInspectedLatLng;
@@ -417,7 +418,7 @@ class BikeMapApp {
 
         const reportDescInput = document.getElementById('report-desc');
         if (reportDescInput && this.routePlanner.lastInspectedName) {
-          reportDescInput.value = `於「${this.routePlanner.lastInspectedName}」發現：`;
+          reportDescInput.value = I18N.t('report.locationPrefix', { name: this.routePlanner.lastInspectedName });
         }
 
         // Jump to the Report tab (nav-item index 2 — see script.js tab switching).
@@ -453,7 +454,7 @@ class BikeMapApp {
           }
           console.log('📍 已自動填入目前位置為起點');
         } else {
-          alert('尚未取得 GPS 位置，請允許定位權限並稍候。');
+          alert(I18N.t('common.noGpsYet'));
         }
       });
     }
@@ -477,7 +478,7 @@ class BikeMapApp {
             });
           }
         } else {
-          alert('尚未取得 GPS 位置，請允許定位權限並稍候。');
+          alert(I18N.t('common.noGpsYet'));
         }
       });
     }
@@ -623,7 +624,7 @@ class BikeMapApp {
           strokeColor: '#ffffff',
           strokeWeight: 2
         },
-        title: '你的位置',
+        title: I18N.t('map.yourLocation'),
         zIndex: 999
       });
 
@@ -709,6 +710,30 @@ class BikeMapApp {
   // 導航邏輯 (In-App Navigation)
   // ================================================================
 
+  /**
+   * Language switched: text in data-i18n elements is already updated by
+   * I18N.apply. Close the shared popup (its HTML was built in the old
+   * language) and retitle the location marker.
+   */
+  _onLangChange() {
+    if (this.sharedInfoWindow) this.sharedInfoWindow.close();
+    if (this.userMarker) this.userMarker.setTitle(I18N.t('map.yourLocation'));
+  }
+
+  /**
+   * Show one of our own messages in the nav banner. The text sits in a
+   * data-i18n span so a language switch updates it; Google's turn
+   * instructions are still written with innerHTML and replace the span.
+   */
+  _setNavInstruction(key, color) {
+    const instructionEl = document.getElementById('nav-instruction');
+    if (!instructionEl) return;
+    const span = document.createElement('span');
+    if (color) span.style.color = color;
+    I18N.setText(span, key);
+    instructionEl.replaceChildren(span);
+  }
+
   _updateNavBanner() {
     if (!this.routePlanner || !this.routePlanner.lastRoute) return;
     
@@ -721,11 +746,10 @@ class BikeMapApp {
       if (this.currentNavStepIndex + 1 < steps.length) {
         if (instructionEl) instructionEl.innerHTML = steps[this.currentNavStepIndex + 1].instructions;
       } else {
-        if (instructionEl) instructionEl.innerHTML = '即將抵達目的地';
+        this._setNavInstruction('nav.arrivingSoon');
       }
     } else {
-      const instructionEl = document.getElementById('nav-instruction');
-      if (instructionEl) instructionEl.innerHTML = '已到達目的地附近！';
+      this._setNavInstruction('nav.arrived');
       const distanceEl = document.getElementById('nav-distance');
       if (distanceEl) distanceEl.textContent = '0 m';
     }
@@ -748,9 +772,8 @@ class BikeMapApp {
     if (this.isRerouting || !this.routePlanner || !this.routePlanner.lastRoute) return;
     this.isRerouting = true;
     
-    const instructionEl = document.getElementById('nav-instruction');
     const distanceEl = document.getElementById('nav-distance');
-    if (instructionEl) instructionEl.innerHTML = '<span style="color: #ffeb3b">偏離路線，重新規劃中...</span>';
+    this._setNavInstruction('nav.rerouting', '#ffeb3b');
     if (distanceEl) distanceEl.textContent = '...';
     
     const legs = this.routePlanner.lastRoute.legs;
@@ -784,9 +807,8 @@ class BikeMapApp {
 
     const steps = this.routePlanner.lastRoute.legs[0].steps;
     if (this.currentNavStepIndex >= steps.length) {
-        const instructionEl = document.getElementById('nav-instruction');
         const distanceEl = document.getElementById('nav-distance');
-        if (instructionEl) instructionEl.innerHTML = '已到達目的地附近！';
+        this._setNavInstruction('nav.arrived');
         if (distanceEl) distanceEl.textContent = '0 m';
         return;
     }

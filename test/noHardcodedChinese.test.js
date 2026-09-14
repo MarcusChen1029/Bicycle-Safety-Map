@@ -16,7 +16,8 @@ const CHECKED_FILES = {
   'js/map_init.js': [],
   'js/dangerZones.js': [],
   'js/config.js': [],
-  'js/script.js': ['throw new Error(', 'reject(new Error(']
+  'js/script.js': ['throw new Error(', 'reject(new Error('],
+  'js/main.js': ['const mode = highAccuracy ?', 'onPositionError(error']
 };
 
 // Blank out // and /* */ comments; keep string/template literals and line numbers.

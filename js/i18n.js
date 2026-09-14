@@ -120,6 +120,21 @@ const I18N = (() => {
       'feedback.thanks': '✅ 感謝您的回饋！',
       'feedback.submitFailed': '回饋送出失敗，請稍後再試。',
       'nav.autoOrigin': '📍 已自動以目前位置作為起點',
+      // App messages (main.js)
+      'app.initFailed': '應用程式初始化失敗，請檢查控制台',
+      'common.noInspectedLocation': '請先點擊地圖或搜尋一個地點。',
+      'common.noGpsYet': '尚未取得 GPS 位置，請允許定位權限並稍候。',
+      'route.missingEndpoints': '請輸入起點與終點地址。',
+      'route.addressResolveFailed': '無法辨識起點或終點地址，請確認後再試一次。',
+      'nav.noDestination': '請先點擊地圖選擇一個地點，或設定終點，才能開始導航。',
+      'nav.noLocationNoOrigin': '尚未取得目前定位，且未設定起點，無法開始導航。',
+      'nav.planning': '規劃中…',
+      'nav.arrivingSoon': '即將抵達目的地',
+      'nav.arrived': '已到達目的地附近！',
+      'nav.rerouting': '偏離路線，重新規劃中...',
+      'map.yourLocation': '你的位置',
+      'report.noLocationSelected': '請先點擊地圖選擇要舉報的地點。',
+      'report.locationPrefix': '於「{name}」發現：',
     },
     en: {
       // Language toggle — the label names the language you switch TO
@@ -230,6 +245,21 @@ const I18N = (() => {
       'feedback.thanks': '✅ Thanks for your feedback!',
       'feedback.submitFailed': 'Couldn\'t submit feedback. Please try again later.',
       'nav.autoOrigin': '📍 Using your current location as the start',
+      // App messages (main.js)
+      'app.initFailed': 'The app failed to start. Please check the console.',
+      'common.noInspectedLocation': 'Tap the map or search for a place first.',
+      'common.noGpsYet': 'Your GPS location isn\'t available yet. Please allow location access and wait a moment.',
+      'route.missingEndpoints': 'Please enter both a start and a destination.',
+      'route.addressResolveFailed': 'Couldn\'t recognize the start or destination address. Please check it and try again.',
+      'nav.noDestination': 'Tap the map to pick a place, or set a destination, before starting navigation.',
+      'nav.noLocationNoOrigin': 'Can\'t start navigation: your location isn\'t available yet and no start is set.',
+      'nav.planning': 'Planning…',
+      'nav.arrivingSoon': 'Arriving at your destination soon',
+      'nav.arrived': 'You\'ve arrived near your destination!',
+      'nav.rerouting': 'Off route — recalculating...',
+      'map.yourLocation': 'Your location',
+      'report.noLocationSelected': 'Tap the map to choose the place you want to report first.',
+      'report.locationPrefix': 'Spotted at "{name}": ',
     }
   };
 
