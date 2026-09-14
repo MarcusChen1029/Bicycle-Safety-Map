@@ -30,6 +30,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Report photo picker: show the chosen file name (data, not translated)
+    // or the translated "no file" text.
+    const reportPhoto = document.getElementById('report-photo');
+    const reportPhotoName = document.getElementById('report-photo-name');
+    function syncReportPhotoName() {
+        if (!reportPhoto || !reportPhotoName) return;
+        const file = reportPhoto.files && reportPhoto.files[0];
+        if (file) {
+            reportPhotoName.removeAttribute('data-i18n');
+            reportPhotoName.textContent = file.name;
+        } else {
+            I18N.setText(reportPhotoName, 'report.photoNone');
+        }
+    }
+    if (reportPhoto) reportPhoto.addEventListener('change', syncReportPhotoName);
+
     // Report Issue Logic
     const submitReportBtn = document.getElementById('submit-report-btn');
     if (submitReportBtn) {
@@ -82,6 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('report-location').value = '';
                 document.getElementById('report-desc').value = '';
                 document.getElementById('report-photo').value = '';
+                syncReportPhotoName();
 
                 // Switch back to Map tab by clicking the first nav item
                 if (navItems[0]) navItems[0].click();

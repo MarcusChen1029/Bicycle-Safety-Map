@@ -79,6 +79,8 @@ const I18N = (() => {
       'report.descLabel': '問題描述',
       'report.descPlaceholder': '請簡短描述現場狀況...',
       'report.photoLabel': '上傳照片 (選填)',
+      'report.photoChoose': '選擇照片',
+      'report.photoNone': '尚未選擇檔案',
       'report.submit': '送出回報',
       // More tab
       'tour.start': '▶️ 新手教學',
@@ -255,6 +257,8 @@ const I18N = (() => {
       'report.descLabel': 'Description',
       'report.descPlaceholder': 'Briefly describe the situation...',
       'report.photoLabel': 'Upload a photo (optional)',
+      'report.photoChoose': 'Choose photo',
+      'report.photoNone': 'No file chosen',
       'report.submit': 'Submit report',
       // More tab
       'tour.start': '▶️ Tutorial',

@@ -719,13 +719,53 @@ textarea#report-desc:focus {
     box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
 }
 
-.report-file-input {
+/* The native file input's button text follows the browser language, so it is
+   hidden and replaced by a label we can translate. */
+.report-file-input-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+}
+
+/* .report-page prefix: must outrank `.report-page label` (display/margin). */
+.report-page .report-file-input {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     width: 100%;
+    margin-bottom: 0;
+    font-weight: normal;
     padding: 10px;
     background: #f9f9f9;
     border: 1px dashed #ccc;
     border-radius: 8px;
     cursor: pointer;
+}
+
+#report-photo:focus-visible + label.report-file-input {
+    border-color: #28a745;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
+}
+
+.report-file-btn {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    background-color: #28a745;
+    color: white;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.report-file-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #888;
+    font-size: 13px;
 }
 
 .submit-report-button:hover {

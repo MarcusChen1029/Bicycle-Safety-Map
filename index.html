@@ -213,8 +213,13 @@
                     style="width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #ddd; background: #f9f9f9; font-size: 14px; resize: vertical;" data-i18n-placeholder="report.descPlaceholder"></textarea>
 
                 <label style="display: block;" data-i18n="report.photoLabel">上傳照片 (選填)</label>
-                <input type="file" id="report-photo" accept="image/*" class="report-file-input"
-                    style="margin-bottom: 20px;">
+                <div style="margin-bottom: 20px;">
+                    <input type="file" id="report-photo" accept="image/*" class="report-file-input-hidden">
+                    <label for="report-photo" class="report-file-input">
+                        <span class="report-file-btn" data-i18n="report.photoChoose">選擇照片</span>
+                        <span id="report-photo-name" class="report-file-name" data-i18n="report.photoNone">尚未選擇檔案</span>
+                    </label>
+                </div>
 
                 <button id="submit-report-btn" class="submit-report-button" data-i18n="report.submit"
                     style="width: 100%; padding: 14px; background-color: #28a745; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s;">送出回報</button>
