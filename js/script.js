@@ -39,16 +39,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const reportLocation = document.getElementById('report-location').value;
 
             if (!reportType) {
-                alert('請選擇問題類型！');
+                alert(I18N.t('report.alertSelectType'));
                 return;
             }
             if (!reportDesc.trim()) {
-                alert('請填寫問題描述！');
+                alert(I18N.t('report.alertFillDescription'));
                 return;
             }
 
             submitReportBtn.disabled = true;
-            submitReportBtn.textContent = '送出中...';
+            I18N.setText(submitReportBtn, 'common.submitting');
 
             // Convert the location text to coordinates so the report can be shown on the map.
             // Aborts the submit if it cannot be resolved, so every stored report is mappable.
@@ -57,9 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 coords = await resolveReportLocation(reportLocation);
             } catch (geoError) {
                 console.warn('Location could not be resolved:', geoError);
-                alert('無法定位回報地點，請點擊 📍 取得目前位置，或輸入正確的地址。');
+                alert(I18N.t('report.locateFailed'));
                 submitReportBtn.disabled = false;
-                submitReportBtn.textContent = '送出回報';
+                I18N.setText(submitReportBtn, 'report.submit');
                 return;
             }
 
@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     status: 'pending'
                 });
 
-                alert('回報已成功送出！感謝您協助改善騎乘環境。');
+                alert(I18N.t('report.submitSuccess'));
 
                 // Clear form
                 document.getElementById('report-type').value = '';
@@ -87,10 +87,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (navItems[0]) navItems[0].click();
             } catch (error) {
                 console.error("Error submitting report:", error);
-                alert('回報送出失敗，請稍後再試。');
+                alert(I18N.t('report.submitFailed'));
             } finally {
                 submitReportBtn.disabled = false;
-                submitReportBtn.textContent = '送出回報';
+                I18N.setText(submitReportBtn, 'report.submit');
             }
         });
     }
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearCacheBtn.addEventListener('click', () => {
             localStorage.removeItem('road_stats_cache_v1');
             localStorage.removeItem('road_scores_cache_v1');
-            alert('快取已清除，重新整理頁面後將重新載入最新資料。');
+            alert(I18N.t('cache.cleared'));
         });
     }
 
@@ -160,14 +160,9 @@ function resolveReportLocation(text) {
 // Current ratings state
 let _feedbackRatings = { overall: 0 };
 
-const _scoreLabels = {
-    0: '尚未評分',
-    1: '1★ 很差',
-    2: '2★ 不佳',
-    3: '3★ 普通',
-    4: '4★ 良好',
-    5: '5★ 非常好'
-};
+function _scoreKey(value) {
+    return value >= 1 && value <= 5 ? `feedback.score${value}` : 'feedback.score0';
+}
 
 /**
  * Show the feedback modal
@@ -208,7 +203,7 @@ function _resetStars() {
     const overallText = document.getElementById('overall-score-text');
 
     if (overallText) {
-        overallText.textContent = _scoreLabels[0];
+        I18N.setText(overallText, 'feedback.score0');
         overallText.classList.remove('scored');
     }
 }
@@ -232,7 +227,7 @@ function _setStars(dimension, value) {
     // Update score text
     const textEl = document.getElementById(`${dimension}-score-text`);
     if (textEl) {
-        textEl.textContent = _scoreLabels[value] || _scoreLabels[0];
+        I18N.setText(textEl, _scoreKey(value));
         if (value > 0) {
             textEl.classList.add('scored');
         } else {
@@ -275,7 +270,7 @@ function _showRoadChecklist(show) {
 function _resetToStageOne() {
   _showRoadChecklist(false);
   const submitBtn = document.getElementById('feedback-submit-btn');
-  if (submitBtn) submitBtn.textContent = '送出回饋';
+  if (submitBtn) I18N.setText(submitBtn, 'feedback.submit');
 }
 
 /**
@@ -367,14 +362,14 @@ function updateFriendlinessGrade(grade) {
 /**
  * Show a toast notification
  */
-function showFeedbackToast(message) {
+function showFeedbackToast(key) {
     // Remove any existing toast
     const existingToast = document.querySelector('.feedback-toast');
     if (existingToast) existingToast.remove();
 
     const toast = document.createElement('div');
     toast.className = 'feedback-toast';
-    toast.textContent = message;
+    I18N.setText(toast, key);
     document.body.appendChild(toast);
 
     // Auto-remove after animation
@@ -437,7 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('feedback-road-checklist').style.display !== 'none';
 
             if (stars === 0) {
-                alert('請先點選星數！');
+                alert(I18N.t('feedback.selectStars'));
                 return;
             }
 
@@ -447,17 +442,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 無可辨識路名 → 無法逐路投票，直接結束
                     hideFeedbackModal();
                     if (planner) await planner.refreshRoadScores();
-                    showFeedbackToast('✅ 感謝您的回饋！');
+                    showFeedbackToast('feedback.thanks');
                     return;
                 }
                 _renderRoadChecklist(roads);
                 _showRoadChecklist(true);
-                submitBtn.textContent = '確認送出';
+                I18N.setText(submitBtn, 'feedback.confirmSubmit');
                 return;
             }
 
             submitBtn.disabled = true;
-            submitBtn.textContent = '送出中...';
+            I18N.setText(submitBtn, 'common.submitting');
             try {
                 const roads = planner ? planner.getRouteRoadNames() : [];
                 const bad = stars < 5 ? new Set(_getCheckedBadRoads()) : new Set();
@@ -470,13 +465,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (planner) await planner.refreshRoadScores();
 
                 hideFeedbackModal();
-                showFeedbackToast('✅ 感謝您的回饋！');
+                showFeedbackToast('feedback.thanks');
             } catch (error) {
                 console.error('Failed to save road votes:', error);
-                alert('回饋送出失敗，請稍後再試。');
+                alert(I18N.t('feedback.submitFailed'));
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.textContent = '送出回饋';
+                I18N.setText(submitBtn, 'feedback.submit');
             }
         });
     }
@@ -511,12 +506,12 @@ document.addEventListener('DOMContentLoaded', () => {
  * multi-second operations (route planning) so the user gets a visible
  * "something is happening" cue instead of a frozen-looking map.
  */
-function showLoadingSpinner(text) {
+function showLoadingSpinner(key) {
     const overlay = document.getElementById('loading-overlay');
     if (!overlay) return;
-    if (text) {
+    if (key) {
         const label = overlay.querySelector('.loading-text');
-        if (label) label.textContent = text;
+        if (label) I18N.setText(label, key);
     }
     overlay.classList.add('visible');
     overlay.setAttribute('aria-hidden', 'false');

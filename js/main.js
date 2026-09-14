@@ -223,7 +223,7 @@ class BikeMapApp {
           }
 
           if (usedCurrentLocationAsOrigin && typeof showFeedbackToast === 'function') {
-            showFeedbackToast('📍 已自動以目前位置作為起點');
+            showFeedbackToast('nav.autoOrigin');
           }
 
           const originalLabel = startNavBtn.textContent;

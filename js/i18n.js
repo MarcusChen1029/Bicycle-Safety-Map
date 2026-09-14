@@ -101,6 +101,25 @@ const I18N = (() => {
       'feedback.score0': '尚未評分',
       'feedback.roadChecklistLabel': '哪幾條路不好？（勾選後送出）',
       'feedback.submit': '送出回饋',
+      // Report submit & cache
+      'common.submitting': '送出中...',
+      'report.alertSelectType': '請選擇問題類型！',
+      'report.alertFillDescription': '請填寫問題描述！',
+      'report.locateFailed': '無法定位回報地點，請點擊 📍 取得目前位置，或輸入正確的地址。',
+      'report.submitSuccess': '回報已成功送出！感謝您協助改善騎乘環境。',
+      'report.submitFailed': '回報送出失敗，請稍後再試。',
+      'cache.cleared': '快取已清除，重新整理頁面後將重新載入最新資料。',
+      // Feedback modal (dynamic)
+      'feedback.score1': '1★ 很差',
+      'feedback.score2': '2★ 不佳',
+      'feedback.score3': '3★ 普通',
+      'feedback.score4': '4★ 良好',
+      'feedback.score5': '5★ 非常好',
+      'feedback.confirmSubmit': '確認送出',
+      'feedback.selectStars': '請先點選星數！',
+      'feedback.thanks': '✅ 感謝您的回饋！',
+      'feedback.submitFailed': '回饋送出失敗，請稍後再試。',
+      'nav.autoOrigin': '📍 已自動以目前位置作為起點',
     },
     en: {
       // Language toggle — the label names the language you switch TO
@@ -192,6 +211,25 @@ const I18N = (() => {
       'feedback.score0': 'Not rated yet',
       'feedback.roadChecklistLabel': 'Which roads were bad? (Check them, then submit)',
       'feedback.submit': 'Submit feedback',
+      // Report submit & cache
+      'common.submitting': 'Submitting...',
+      'report.alertSelectType': 'Please choose an issue type!',
+      'report.alertFillDescription': 'Please add a description!',
+      'report.locateFailed': 'Couldn\'t locate the report. Tap 📍 to use your current location, or enter a valid address.',
+      'report.submitSuccess': 'Report submitted! Thanks for helping improve riding conditions.',
+      'report.submitFailed': 'Couldn\'t submit the report. Please try again later.',
+      'cache.cleared': 'Cache cleared. Refresh the page to load the latest data.',
+      // Feedback modal (dynamic)
+      'feedback.score1': '1★ Very poor',
+      'feedback.score2': '2★ Poor',
+      'feedback.score3': '3★ Average',
+      'feedback.score4': '4★ Good',
+      'feedback.score5': '5★ Excellent',
+      'feedback.confirmSubmit': 'Confirm',
+      'feedback.selectStars': 'Please pick a star rating first!',
+      'feedback.thanks': '✅ Thanks for your feedback!',
+      'feedback.submitFailed': 'Couldn\'t submit feedback. Please try again later.',
+      'nav.autoOrigin': '📍 Using your current location as the start',
     }
   };
 

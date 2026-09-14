@@ -919,7 +919,7 @@ class RoutePlanner {
         // typeof-guarded like every other cross-file UI call in this class —
         // a stale-cached script.js must degrade to "no spinner", never break
         // route planning itself.
-        if (typeof showLoadingSpinner === 'function') showLoadingSpinner('規劃路線中…');
+        if (typeof showLoadingSpinner === 'function') showLoadingSpinner('route.planning');
         try {
             const result = await this.calculateRoute(request);
 

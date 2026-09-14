@@ -15,7 +15,8 @@ const CHECKED_FILES = {
   'js/accidentLayer.js': ["accident.severity === '死亡'", "description: '示範事故'"],
   'js/map_init.js': [],
   'js/dangerZones.js': [],
-  'js/config.js': []
+  'js/config.js': [],
+  'js/script.js': ['throw new Error(', 'reject(new Error(']
 };
 
 // Blank out // and /* */ comments; keep string/template literals and line numbers.
