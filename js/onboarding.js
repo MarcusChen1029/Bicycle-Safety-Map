@@ -9,65 +9,65 @@
         {
             tab: 0,
             target: null,
-            title: '歡迎使用自行車安全地圖 🚴',
-            text: '這個導覽會帶你快速認識主要功能，隨時可以按「跳過」離開。'
+            titleKey: 'tour.step0.title',
+            textKey: 'tour.step0.text'
         },
         {
             tab: 0,
             before: () => document.getElementById('close-route-dropdown')?.click(),
             target: '#search-input',
-            title: '搜尋地點',
-            text: '輸入地點或地址後搜尋，會直接顯示那裡的友善等級評分。'
+            titleKey: 'tour.step1.title',
+            textKey: 'tour.step1.text'
         },
         {
             tab: 0,
             target: '.avoid-toggle-row',
-            title: '🛡️ 避開危險區域',
-            text: '預設開啟：規劃路線時會自動避開事故熱點與低評分路段。'
+            titleKey: 'tour.step2.title',
+            textKey: 'tour.step2.text'
         },
         {
             tab: 0,
             before: () => document.getElementById('search-input')?.click(),
             target: '#route-dropdown',
-            title: '規劃路線',
-            text: '點一下搜尋列會展開這裡：輸入起點／終點後按「規劃路線」。'
+            titleKey: 'tour.step3.title',
+            textKey: 'tour.step3.text'
         },
         {
             tab: 0,
             before: () => document.getElementById('close-route-dropdown')?.click(),
             target: '#map-controls-container',
-            title: '地圖圖層',
-            text: '右上角可切換 YouBike 模式、YouBike 站點與自行車道圖層。'
+            titleKey: 'tour.step4.title',
+            textKey: 'tour.step4.text'
         },
         {
             tab: 0,
             target: '#map',
-            title: '點擊地圖評分',
-            text: '在地圖上點一下任一位置，就能看到那條路的友善等級。'
+            titleKey: 'tour.step5.title',
+            textKey: 'tour.step5.text'
         },
         {
             tab: 1,
             target: '#view-route .favorites-section',
-            title: '⭐ 我的最愛',
-            text: '在這裡管理常用地址；路線起訖點的輸入其實在最上方的搜尋列。'
+            titleKey: 'tour.step6.title',
+            textKey: 'tour.step6.text'
         },
         {
             tab: 2,
             target: '#view-report .report-page h3',
-            title: '🚩 回報問題',
-            text: '發現路況異常嗎？在這裡回報，會即時顯示在地圖上給大家看到。'
+            titleKey: 'tour.step7.title',
+            textKey: 'tour.step7.text'
         },
         {
             tab: 3,
             target: '#view-more .report-page h3',
-            title: '更多設定',
-            text: '這裡有友善等級圖例、清除快取，還有關於本 App 的說明——之後也可以隨時從這裡重新開始這個導覽。'
+            titleKey: 'tour.step8.title',
+            textKey: 'tour.step8.text'
         },
         {
             tab: 3,
             target: null,
-            title: '準備出發！',
-            text: '教學結束了，祝你騎乘愉快 🚴‍♂️ 現在就去地圖上找一條友善的路線吧。'
+            titleKey: 'tour.step9.title',
+            textKey: 'tour.step9.text'
         }
     ];
 
@@ -91,15 +91,16 @@
                 <div class="tour-tooltip-text" id="tour-text"></div>
                 <div class="tour-progress" id="tour-progress"></div>
                 <div class="tour-tooltip-actions">
-                    <button id="tour-skip" class="tour-btn tour-btn-ghost">跳過</button>
+                    <button id="tour-skip" class="tour-btn tour-btn-ghost" data-i18n="common.skip"></button>
                     <div class="tour-tooltip-actions-right">
-                        <button id="tour-prev" class="tour-btn tour-btn-ghost">上一步</button>
-                        <button id="tour-next" class="tour-btn tour-btn-primary">下一步</button>
+                        <button id="tour-prev" class="tour-btn tour-btn-ghost" data-i18n="common.prev"></button>
+                        <button id="tour-next" class="tour-btn tour-btn-primary" data-i18n="common.next"></button>
                     </div>
                 </div>
             </div>
         `;
         document.body.appendChild(overlay);
+        I18N.apply(overlay);
 
         overlay.querySelector('#tour-skip').addEventListener('click', endTour);
         overlay.querySelector('#tour-prev').addEventListener('click', () => goTo(stepIndex - 1));
@@ -143,11 +144,11 @@
         const prevBtn = overlay.querySelector('#tour-prev');
         const nextBtn = overlay.querySelector('#tour-next');
 
-        titleEl.textContent = step.title;
-        textEl.textContent = step.text;
+        I18N.setText(titleEl, step.titleKey);
+        I18N.setText(textEl, step.textKey);
         progressEl.textContent = `${stepIndex + 1} / ${STEPS.length}`;
         prevBtn.style.visibility = stepIndex === 0 ? 'hidden' : 'visible';
-        nextBtn.textContent = stepIndex === STEPS.length - 1 ? '完成' : '下一步';
+        I18N.setText(nextBtn, stepIndex === STEPS.length - 1 ? 'common.done' : 'common.next');
 
         const targetEl = step.target ? document.querySelector(step.target) : null;
 
@@ -201,5 +202,11 @@
     document.addEventListener('DOMContentLoaded', () => {
         const btn = document.getElementById('start-tour-btn');
         if (btn) btn.addEventListener('click', startTour);
+    });
+
+    // Text is already swapped by I18N.apply; re-render so the tooltip is
+    // re-measured and re-positioned for the new text length.
+    window.addEventListener('langchange', () => {
+        if (overlay) render(STEPS[stepIndex]);
     });
 })();
