@@ -135,6 +135,21 @@ const I18N = (() => {
       'map.yourLocation': '你的位置',
       'report.noLocationSelected': '請先點擊地圖選擇要舉報的地點。',
       'report.locationPrefix': '於「{name}」發現：',
+      // Route planner & favorites (routePlanner.js)
+      'route.origin': '起點',
+      'route.destination': '終點',
+      'route.originShort': '起',
+      'route.destShort': '終',
+      'route.planFailed': '找不到路線，請確認地址後再試一次。\n錯誤：{error}',
+      'route.youbikeDataNotLoaded': 'YouBike 站點資料尚未載入，將使用一般路線。',
+      'route.youbikeGeocodeFailed': '無法定位起點或終點，將使用一般路線。',
+      'route.youbikeNoStation': '附近找不到可借/可還的 YouBike 站點，將使用一般路線。',
+      'search.notFound': '找不到「{query}」，請換個關鍵字或更完整的地址。',
+      'fav.empty': '尚未加入常用地址',
+      'fav.delete': '刪除此地址',
+      'fav.missingFields': '請輸入名稱及完整地址',
+      'fav.confirmDuplicate': '此名稱或地址已存在，確定要加入嗎？',
+      'fav.resolveFailed': '無法辨識此常用地址，請確認後再試一次。',
     },
     en: {
       // Language toggle — the label names the language you switch TO
@@ -260,6 +275,21 @@ const I18N = (() => {
       'map.yourLocation': 'Your location',
       'report.noLocationSelected': 'Tap the map to choose the place you want to report first.',
       'report.locationPrefix': 'Spotted at "{name}": ',
+      // Route planner & favorites (routePlanner.js)
+      'route.origin': 'Start',
+      'route.destination': 'Destination',
+      'route.originShort': 'S',
+      'route.destShort': 'F',
+      'route.planFailed': 'Couldn\'t find a route. Please check the addresses and try again.\nError: {error}',
+      'route.youbikeDataNotLoaded': 'YouBike station data hasn\'t loaded yet, so a regular route will be used.',
+      'route.youbikeGeocodeFailed': 'Couldn\'t locate the start or destination, so a regular route will be used.',
+      'route.youbikeNoStation': 'No nearby YouBike station has bikes or open docks, so a regular route will be used.',
+      'search.notFound': 'Couldn\'t find "{query}". Try another keyword or a more complete address.',
+      'fav.empty': 'No saved places yet',
+      'fav.delete': 'Delete this place',
+      'fav.missingFields': 'Please enter a name and a full address.',
+      'fav.confirmDuplicate': 'This name or address already exists. Add it anyway?',
+      'fav.resolveFailed': 'Couldn\'t recognize this saved place. Please check it and try again.',
     }
   };
 

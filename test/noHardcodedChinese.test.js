@@ -17,7 +17,8 @@ const CHECKED_FILES = {
   'js/dangerZones.js': [],
   'js/config.js': [],
   'js/script.js': ['throw new Error(', 'reject(new Error('],
-  'js/main.js': ['const mode = highAccuracy ?', 'onPositionError(error']
+  'js/main.js': ['const mode = highAccuracy ?', 'onPositionError(error'],
+  'js/routePlanner.js': ["a.severity === '死亡'", '[縣市區鄉鎮]', '號?$/u']
 };
 
 // Blank out // and /* */ comments; keep string/template literals and line numbers.

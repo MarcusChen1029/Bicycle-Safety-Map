@@ -24,6 +24,7 @@ class RoutePlanner {
         this.favorites = this.loadFavorites();
         this.bindFavoriteEvents();
         this.renderFavorites();
+        window.addEventListener('langchange', () => this._onLangChange());
 
         // Feedback: store last planned route for post-ride feedback
         this.lastRoute = null;
@@ -172,13 +173,13 @@ class RoutePlanner {
      */
     addFavorite(name, address) {
         if (!name.trim() || !address.trim()) {
-            alert('請輸入名稱及完整地址');
+            alert(I18N.t('fav.missingFields'));
             return;
         }
 
         // Prevent exact duplicates
         const exists = this.favorites.some(f => f.name === name || f.address === address);
-        if (exists && !confirm('此名稱或地址已存在，確定要加入嗎？')) return;
+        if (exists && !confirm(I18N.t('fav.confirmDuplicate'))) return;
 
         this.favorites.push({
             id: Date.now().toString(),
@@ -201,7 +202,7 @@ class RoutePlanner {
      */
     addFavoriteFromInspected() {
         if (!this.lastInspectedLatLng) {
-            alert('請先點擊地圖或搜尋一個地點。');
+            alert(I18N.t('common.noInspectedLocation'));
             return;
         }
         const latLng = this.lastInspectedLatLng;
@@ -251,7 +252,10 @@ class RoutePlanner {
         listEl.innerHTML = '';
 
         if (this.favorites.length === 0) {
-            listEl.innerHTML = '<li style="justify-content: center; color: #888; font-size: 13px;">尚未加入常用地址</li>';
+            const emptyItem = document.createElement('li');
+            emptyItem.style.cssText = 'justify-content: center; color: #888; font-size: 13px;';
+            emptyItem.textContent = I18N.t('fav.empty');
+            listEl.appendChild(emptyItem);
             return;
         }
 
@@ -270,8 +274,8 @@ class RoutePlanner {
 
             const originBtn = document.createElement('button');
             originBtn.className = 'fav-set-origin';
-            originBtn.textContent = '起';
-            originBtn.title = '設為起點';
+            originBtn.textContent = I18N.t('route.originShort');
+            originBtn.title = I18N.t('route.setOrigin');
             originBtn.onclick = (e) => {
                 e.stopPropagation();
                 this.setFavoriteAsOrigin(fav.address);
@@ -279,8 +283,8 @@ class RoutePlanner {
 
             const destBtn = document.createElement('button');
             destBtn.className = 'fav-set-dest';
-            destBtn.textContent = '終';
-            destBtn.title = '設為終點';
+            destBtn.textContent = I18N.t('route.destShort');
+            destBtn.title = I18N.t('route.setDest');
             destBtn.onclick = (e) => {
                 e.stopPropagation();
                 this.setFavoriteAsDestination(fav.address);
@@ -290,7 +294,7 @@ class RoutePlanner {
             const delBtn = document.createElement('button');
             delBtn.className = 'fav-delete';
             delBtn.innerHTML = '🗑️';
-            delBtn.title = '刪除此地址';
+            delBtn.title = I18N.t('fav.delete');
             delBtn.onclick = (e) => this.deleteFavorite(fav.id, e);
 
             actionsDiv.appendChild(originBtn);
@@ -315,7 +319,7 @@ class RoutePlanner {
             this._switchToMapTab();
         } catch (e) {
             console.error('常用地址設為起點失敗:', e);
-            alert('無法辨識此常用地址，請確認後再試一次。');
+            alert(I18N.t('fav.resolveFailed'));
         }
     }
 
@@ -330,7 +334,7 @@ class RoutePlanner {
             this._switchToMapTab();
         } catch (e) {
             console.error('常用地址設為終點失敗:', e);
-            alert('無法辨識此常用地址，請確認後再試一次。');
+            alert(I18N.t('fav.resolveFailed'));
         }
     }
 
@@ -403,7 +407,7 @@ class RoutePlanner {
                         this.setDestination(loc);
                     } else {
                         console.warn(`🔍 Search failed for "${q}": ${status}`);
-                        alert(`找不到「${q}」，請換個關鍵字或更完整的地址。`);
+                        alert(I18N.t('search.notFound', { query: q }));
                     }
                     resolve();
                 }
@@ -642,6 +646,23 @@ class RoutePlanner {
      *   to a formatted "lat, lng" string when omitted (e.g. GPS fix with no
      *   reverse-geocoded address yet).
      */
+    /**
+     * Language switched: rebuild the favorites list and relabel the pins in
+     * place. Don't go through setOrigin()/_showDestinationMarker() — they
+     * also move the pins and can re-trigger route planning.
+     */
+    _onLangChange() {
+        this.renderFavorites();
+        if (this.originMarker) {
+            this.originMarker.setLabel({ ...this.originMarker.getLabel(), text: I18N.t('route.originShort') });
+            this.originMarker.setTitle(I18N.t('route.origin'));
+        }
+        if (this.destinationMarker) {
+            this.destinationMarker.setLabel({ ...this.destinationMarker.getLabel(), text: I18N.t('route.destShort') });
+            this.destinationMarker.setTitle(I18N.t('route.destination'));
+        }
+    }
+
     setOrigin(latLng, label) {
         const normalized = this._toLatLng(latLng);
         this.originLatLng = normalized;
@@ -654,7 +675,7 @@ class RoutePlanner {
             strokeColor: '#fff',
             strokeWeight: 2
         };
-        const markerLabel = { text: '起', color: '#fff', fontSize: '12px', fontWeight: 'bold' };
+        const markerLabel = { text: I18N.t('route.originShort'), color: '#fff', fontSize: '12px', fontWeight: 'bold' };
 
         if (!this.originMarker) {
             this.originMarker = new google.maps.Marker({
@@ -664,7 +685,7 @@ class RoutePlanner {
                 label: markerLabel,
                 draggable: true,
                 zIndex: 998, // below clickMarker (999), above layers
-                title: '起點'
+                title: I18N.t('route.origin')
             });
             this.originMarker.addListener('dragend', () => this._handleOriginDragend());
             this.originMarker.addListener('rightclick', () => this.clearOrigin());
@@ -699,7 +720,7 @@ class RoutePlanner {
             strokeColor: '#fff',
             strokeWeight: 2
         };
-        const markerLabel = { text: '終', color: '#fff', fontSize: '12px', fontWeight: 'bold' };
+        const markerLabel = { text: I18N.t('route.destShort'), color: '#fff', fontSize: '12px', fontWeight: 'bold' };
 
         if (!this.destinationMarker) {
             this.destinationMarker = new google.maps.Marker({
@@ -709,7 +730,7 @@ class RoutePlanner {
                 label: markerLabel,
                 draggable: true,
                 zIndex: 998, // below clickMarker (999), above layers
-                title: '終點'
+                title: I18N.t('route.destination')
             });
             this.destinationMarker.addListener('dragend', () => this._handleDestinationMarkerDragend());
             this.destinationMarker.addListener('rightclick', () => this.clearDestination());
@@ -891,7 +912,7 @@ class RoutePlanner {
      */
     async planRoute(origin, destination) {
         if (!origin || !destination) {
-            alert('Please enter both start and end locations.');
+            alert(I18N.t('route.missingEndpoints'));
             return;
         }
 
@@ -1075,7 +1096,7 @@ class RoutePlanner {
 
         } catch (error) {
             console.error('❌ Direction request failed due to ' + error);
-            alert('Could not find a route. Please check the addresses and try again.\nError: ' + error.message);
+            alert(I18N.t('route.planFailed', { error: error.message }));
         } finally {
             if (typeof hideLoadingSpinner === 'function') hideLoadingSpinner();
         }
@@ -1089,7 +1110,7 @@ class RoutePlanner {
      */
     async _snapToYoubikeStations(origin, destination) {
         if (!this.youbikeLayer || !this.youbikeLayer.allStations || this.youbikeLayer.allStations.length === 0) {
-            alert('YouBike 站點資料尚未載入，將使用一般路線。');
+            alert(I18N.t('route.youbikeDataNotLoaded'));
             return null;
         }
 
@@ -1101,7 +1122,7 @@ class RoutePlanner {
             ]);
         } catch (e) {
             console.warn('YouBike mode: could not resolve start/end to coordinates', e);
-            alert('無法定位起點或終點，將使用一般路線。');
+            alert(I18N.t('route.youbikeGeocodeFailed'));
             return null;
         }
 
@@ -1109,7 +1130,7 @@ class RoutePlanner {
         const endStation = this.youbikeLayer.findNearestStation(destLatLng, 'return');
 
         if (!startStation || !endStation) {
-            alert('附近找不到可借/可還的 YouBike 站點，將使用一般路線。');
+            alert(I18N.t('route.youbikeNoStation'));
             return null;
         }
 
