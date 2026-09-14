@@ -19,7 +19,10 @@ const CHECKED_FILES = {
   'js/script.js': ['throw new Error(', 'reject(new Error('],
   'js/main.js': ['const mode = highAccuracy ?', 'onPositionError(error'],
   'js/routePlanner.js': ["a.severity === '死亡'", '[縣市區鄉鎮]', '號?$/u'],
-  'js/onboarding.js': []
+  'js/onboarding.js': [],
+  'js/reportLayer.js': [],
+  'js/bikeLane.js': ["includes('專用')", "includes('共用')"],
+  'js/youbikeLayer.js': []
 };
 
 // Blank out // and /* */ comments; keep string/template literals and line numbers.

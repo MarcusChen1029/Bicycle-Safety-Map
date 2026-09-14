@@ -174,6 +174,18 @@ const I18N = (() => {
       'tour.step8.text': '這裡有友善等級圖例、清除快取，還有關於本 App 的說明——之後也可以隨時從這裡重新開始這個導覽。',
       'tour.step9.title': '準備出發！',
       'tour.step9.text': '教學結束了，祝你騎乘愉快 🚴‍♂️ 現在就去地圖上找一條友善的路線吧。',
+      // Map layer popups
+      'report.typeFallback': '回報問題',
+      'report.noDescription': '（無描述）',
+      'bikeLane.typeLabel': '類型：',
+      'bikeLane.lengthLabel': '長度：',
+      'bikeLane.lengthKm': '{km} 公里',
+      'bikeLane.type.normal': '一般道路',
+      'bikeLane.type.dedicated': '自行車專用道',
+      'bikeLane.type.shared': '人車共用道',
+      'youbike.rentLabel': '可借：',
+      'youbike.returnLabel': '可還：',
+      'youbike.updated': '更新：{time}',
     },
     en: {
       // Language toggle — the label names the language you switch TO
@@ -338,6 +350,18 @@ const I18N = (() => {
       'tour.step8.text': 'Find the friendliness grade legend, cache clearing, and info about the app here — you can also restart this tour from here anytime.',
       'tour.step9.title': 'Ready to ride!',
       'tour.step9.text': 'That\'s the tour. Enjoy your ride 🚴‍♂️ Now go find a friendly route on the map.',
+      // Map layer popups
+      'report.typeFallback': 'Reported issue',
+      'report.noDescription': '(No description)',
+      'bikeLane.typeLabel': 'Type: ',
+      'bikeLane.lengthLabel': 'Length: ',
+      'bikeLane.lengthKm': '{km} km',
+      'bikeLane.type.normal': 'Regular road',
+      'bikeLane.type.dedicated': 'Dedicated bike lane',
+      'bikeLane.type.shared': 'Shared lane',
+      'youbike.rentLabel': 'Bikes: ',
+      'youbike.returnLabel': 'Docks: ',
+      'youbike.updated': 'Updated: {time}',
     }
   };
 

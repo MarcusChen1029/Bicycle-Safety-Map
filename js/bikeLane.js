@@ -147,8 +147,8 @@ class BikeLaneLayer {
     return `
       <div style="padding: 4px; max-width: 200px; font-family: sans-serif;">
         <h4 style="color: #00AA00; margin: 0 0 6px 0; font-size: 15px;">🚴 ${lane.name}</h4>
-        <p style="margin: 2px 0; font-size: 13px;"><strong>類型：</strong>${lane.type}</p>
-        <p style="margin: 2px 0; font-size: 13px;"><strong>長度：</strong>${(lane.length / 1000).toFixed(2)} 公里</p>
+        <p style="margin: 2px 0; font-size: 13px;"><strong>${I18N.t('bikeLane.typeLabel')}</strong>${this.laneTypeLabel(lane.type)}</p>
+        <p style="margin: 2px 0; font-size: 13px;"><strong>${I18N.t('bikeLane.lengthLabel')}</strong>${I18N.t('bikeLane.lengthKm', { km: (lane.length / 1000).toFixed(2) })}</p>
         ${lane.description ? `<p style="margin: 2px 0; font-size: 12px; color: #666;">${lane.description}</p>` : ''}
       </div>
     `;
@@ -160,6 +160,11 @@ class BikeLaneLayer {
       polyline.setMap(this.visible ? this.map : null);
     });
     console.log(`Layer visibility: ${this.visible}`);
+  }
+
+  laneTypeLabel(type) {
+    const key = `bikeLane.type.${type}`;
+    return key in I18N.STRINGS.zh ? I18N.t(key) : type;
   }
 
   getLaneColor(type) {

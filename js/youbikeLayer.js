@@ -19,6 +19,12 @@ class YoubikeLayer {
                 }, 500); // 1000ms delay (1s)
             }
         });
+
+        window.addEventListener('langchange', () => {
+            for (const marker of this.markers.values()) {
+                if (marker._station) marker.setTitle(this.stationName(marker._station));
+            }
+        });
     }
 
     async loadData() {
@@ -169,6 +175,12 @@ class YoubikeLayer {
         }
     }
 
+    // English mode uses the API's own English station name when it has one.
+    stationName(station) {
+        const name = I18N.getLang() === 'en' && station.snaen ? station.snaen : station.sna;
+        return name.replace('YouBike2.0_', '');
+    }
+
     createMarker(station, lat, lng) {
         // Determine color based on availability
         let markerColor = '#F6A800'; // Default YouBike Orange
@@ -182,7 +194,7 @@ class YoubikeLayer {
         const marker = new google.maps.Marker({
             position: { lat: lat, lng: lng },
             map: this.map,
-            title: station.sna,
+            title: this.stationName(station),
             icon: {
                 path: google.maps.SymbolPath.CIRCLE,
                 fillColor: markerColor,
@@ -201,15 +213,16 @@ class YoubikeLayer {
             });
         });
 
+        marker._station = station;
         this.markers.set(station.sno, marker);
     }
 
     createInfoWindowContent(station) {
         return `
       <div style="padding: 4px; max-width: 200px; font-family: sans-serif;">
-        <h4 style="color: #F6A800; margin: 0 0 6px 0; font-size: 15px;">🚲 ${station.sna.replace('YouBike2.0_', '')}</h4>
-        <p style="margin: 2px 0; font-size: 13px;"><strong>可借：</strong><span style="font-size: 14px; color: #d9534f; font-weight: bold;">${station.available_rent_bikes}</span> &nbsp; <strong>可還：</strong><span style="font-size: 14px; color: #5cb85c; font-weight: bold;">${station.available_return_bikes}</span></p>
-        <p style="margin: 2px 0; font-size: 11px; color: #888;">更新：${station.srcUpdateTime.substring(11)}</p>
+        <h4 style="color: #F6A800; margin: 0 0 6px 0; font-size: 15px;">🚲 ${this.stationName(station)}</h4>
+        <p style="margin: 2px 0; font-size: 13px;"><strong>${I18N.t('youbike.rentLabel')}</strong><span style="font-size: 14px; color: #d9534f; font-weight: bold;">${station.available_rent_bikes}</span> &nbsp; <strong>${I18N.t('youbike.returnLabel')}</strong><span style="font-size: 14px; color: #5cb85c; font-weight: bold;">${station.available_return_bikes}</span></p>
+        <p style="margin: 2px 0; font-size: 11px; color: #888;">${I18N.t('youbike.updated', { time: station.srcUpdateTime.substring(11) })}</p>
       </div>
     `;
     }

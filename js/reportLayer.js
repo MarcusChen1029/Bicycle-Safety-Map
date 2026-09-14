@@ -15,17 +15,28 @@ class ReportLayer {
         this.unsubscribe = null;
         this.visible = true;
         this.maxReports = 300; // cap live listener to most-recent N reports
+
+        window.addEventListener('langchange', () => {
+            for (const marker of this.markers.values()) {
+                marker.setTitle('⚠️ ' + ReportLayer.typeLabel(marker._reportData.type));
+            }
+        });
     }
 
-    // Map stored report type codes to their Chinese labels (same wording as the form).
-    static TYPE_LABELS = {
-        pothole: '路面坑洞',
-        illegal_parking: '違規停車',
-        obstacle: '道路障礙物',
-        faded_lines: '標線模糊或毀損',
-        accident: '事故發生',
-        other: '其他'
+    // Map stored report type codes to dictionary keys (same wording as the form).
+    static TYPE_KEYS = {
+        pothole: 'report.type.pothole',
+        illegal_parking: 'report.type.illegalParking',
+        obstacle: 'report.type.obstacle',
+        faded_lines: 'report.type.fadedLines',
+        accident: 'report.type.accident',
+        other: 'report.type.other'
     };
+
+    static typeLabel(type) {
+        const key = ReportLayer.TYPE_KEYS[type];
+        return I18N.t(key || 'report.typeFallback');
+    }
 
     /**
      * Attach the real-time listener. Reconciles markers on every snapshot:
@@ -79,7 +90,7 @@ class ReportLayer {
         const marker = new google.maps.Marker({
             position: { lat: report.lat, lng: report.lng },
             map: this.visible ? this.map : null,
-            title: '⚠️ ' + (ReportLayer.TYPE_LABELS[report.type] || '回報問題'),
+            title: '⚠️ ' + ReportLayer.typeLabel(report.type),
             label: {
                 text: '⚠️',
                 fontSize: '20px'
@@ -112,12 +123,12 @@ class ReportLayer {
     }
 
     _createInfoWindowContent(report) {
-        const label = ReportLayer.TYPE_LABELS[report.type] || '回報問題';
-        const desc = report.description ? this._escapeHtml(report.description) : '（無描述）';
+        const label = ReportLayer.typeLabel(report.type);
+        const desc = report.description ? this._escapeHtml(report.description) : I18N.t('report.noDescription');
         const place = report.address || report.location || '';
         let dateStr = '';
         if (report.timestamp && typeof report.timestamp.toDate === 'function') {
-            dateStr = report.timestamp.toDate().toLocaleString('zh-TW');
+            dateStr = report.timestamp.toDate().toLocaleString(I18N.getLang() === 'en' ? 'en-US' : 'zh-TW');
         }
 
         return `
