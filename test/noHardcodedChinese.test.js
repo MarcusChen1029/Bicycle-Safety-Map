@@ -14,7 +14,6 @@ const CJK = /[一-鿿]/;
 const CHECKED_FILES = {
   'js/accidentLayer.js': ["accident.severity === '死亡'", "description: '示範事故'"],
   'js/map_init.js': [],
-  'js/dangerZones.js': [],
   'js/config.js': [],
   'js/script.js': ['throw new Error(', 'reject(new Error('],
   'js/main.js': ['const mode = highAccuracy ?', 'onPositionError(error'],
